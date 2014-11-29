@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_matrix, lil_matrix
 
 
 class ProxyDistribution:
@@ -122,7 +122,7 @@ def sparse_2d_penalty_matrix(data_shape, nonrect_to_data=None):
     num_rows = row_counter
     num_cols = max(col) + 1
     return csc_matrix((data, (row, col)), shape=(num_rows, num_cols))
-
+    
 def sparse_1d_penalty_matrix(data_len):
     penalties = np.eye(data_len, dtype=float)[0:-1] * -1
     for i in xrange(len(penalties)):

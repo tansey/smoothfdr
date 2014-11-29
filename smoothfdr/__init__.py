@@ -149,7 +149,7 @@ def plot_2d_data(data, filename, true_weights=None):
     plt.colorbar(heatmap)
     if true_weights is not None:
         axarr[1].imshow(true_weights, cmap=cm.binary, interpolation='none', origin='lower')
-    plt.title('Data visualization', fontsize=FIG_TITLE_FONTSIZE)
+    #plt.title('Data visualization', fontsize=FIG_TITLE_FONTSIZE)
     plt.savefig(filename, bbox_inches='tight')
     plt.clf()
 

@@ -367,6 +367,7 @@ class SmoothedFdr(object):
         dual_trace = []
         converged = False
         cur_step = 0
+        D_full = D
         while not converged and cur_step < max_steps:
             # Update x
             x = (weights * y + a * (z - u_dual)) / (weights + a)
