@@ -52,10 +52,69 @@ This will run the algorithm on a synthetic dataset that is generated on-the-fly.
 
 For a detailed list of commands, just run `smoothfdr -h`.
 
-Still to come
-=============
-There are a few things we are still working on debugging in the production release but are ready in our private repo:
+Running an example on an arbitrary graph
+========================================
 
-- Non-rectangular data (i.e. `fmri` mode) is currently buggy. This will be fixed soon.
+If your problem is not structured simply according to a 1d, 2d, or 3d grid, then you will want to run using the __graph__ type. This uses the `pygfl` package to solve the underlying graph-fused lasso problem. You'll need a CSV file containing the list of edges in the format:
 
-- Empirical null is currently only available in the R version and will be integrated in future editions of the Python version.
+```
+0,1
+1,2
+2,10
+5,15
+3,0
+...
+```
+
+where the first and second numbers correspond to the index of the node in the graph. Assuming this file is `test/edges.csv`, the first step is to generate the setup files for `pygfl`:
+
+```
+maketrails file --infile test/edges.csv --savet test/trails.csv
+```
+
+You can then run FDR smoothing using the `graph` setting, applied to some z-score file called `test/data.csv`:
+
+```
+smoothfdr --data_file test/data.csv \
+--empirical_null --estimate_signal --solution_path --dual_solver graph --fdr_level 0.1 \
+--save_weights test/weights.csv --save_posteriors test/posteriors.csv --save_signal test/signal.csv --save_plateaus test/plateaus.csv \
+--plot_path test/plot_path.pdf --plot_signal test/plot_signal.pdf \
+graph --trails test/trails.csv
+```
+
+The first line simply specifies the data file containing the vector z-scores. The second line specifies that the null and alternative (signal) distributions should be estimated from the data, that a solution path approach should be used to auto-tune the hyperparameters, and that we're using a false discovery rate of 10%. The third and fourth lines specify where to save the various types of output from the algorithm-- note that the weights (AKA priors) and posteriors are what you are most likely interested in here. Finally, the last line specifies we're using the graph-fused lasso solver and provides the setup file we generated previously.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,7 +1,8 @@
-import matplotlib
-matplotlib.use('Agg')
+import matplotlib as mpl
+mpl.use('Agg')
 from matplotlib import cm, colors
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import argparse
 import csv
@@ -9,16 +10,11 @@ import sys
 from scipy.sparse import csc_matrix, dia_matrix, linalg as sla
 from scipy.stats import norm
 from smoothed_fdr import SmoothedFdr, GaussianKnown, calc_plateaus
-from normix import GridDistribution, predictive_recursion
+from normix import GridDistribution, predictive_recursion, empirical_null
 import signal_distributions
 from utils import *
+from plotutils import *
 
-FIG_FONTSIZE = 18
-FIG_TITLE_FONTSIZE = 28
-FIG_LINE_WIDTH = 4
-FIG_TICK_LABEL_SIZE = 14
-FIG_BORDER_WIDTH = 2
-FIG_TICK_WIDTH = 2
 
 def calculate_1d_signal_weights(split_points, split_weights):
     '''Generate signal weights from the user-specified splits.'''
@@ -39,6 +35,13 @@ def calculate_2d_signal_weights(width, height, default_weight, x_min, x_max, y_m
     signal_weights = np.zeros((width, height)) + default_weight
     for region in zip(x_min, x_max, y_min, y_max, weights):
         signal_weights[region[0]:region[1]+1,region[2]:region[3]+1] = region[4]
+    return signal_weights
+
+def calculate_3d_signal_weights(width, height, depth, default_weight, x_min, x_max, y_min, y_max, z_min, z_max, weights):
+    '''Generate signal weights from the user-specified splits.'''
+    signal_weights = np.zeros((width, height, depth)) + default_weight
+    for region in zip(x_min, x_max, y_min, y_max, z_min, z_max, weights):
+        signal_weights[region[0]:region[1]+1,region[2]:region[3]+1,region[4]:region[5]+1] = region[6]
     return signal_weights
 
 def generate_data_helper(flips, null_mean, null_stdev, signal_dist):
@@ -63,7 +66,7 @@ def generate_data(null_mean, null_stdev, signal_dist, signal_weights):
     return (z, flips)
 
 def save_data(data, filename, header=True):
-    '''Saves a CSV file containing hte z-scores.'''
+    '''Saves a CSV file containing the z-scores.'''
     with open(filename, 'wb') as f:
         writer = csv.writer(f)
         
@@ -86,10 +89,10 @@ def load_data(filename, header=True):
 
         # read in all the rows
         for line in reader:
-            data.append(np.array([float(x) if x != 'True' and x != 'False' else (1 if x == 'True' else 0) for x in line]))
+            data.append(np.array([float(x) if x != 'True' and x != 'False' else (1 if x == 'True' else 0) for x in line], dtype='double'))
 
     # Return the matrix of z-scores
-    return np.array(data)
+    return np.array(data, dtype='double') if len(data) > 1 else data[0]
 
 def load_neurodata(filename, header=True):
     '''Loads a CSV file containing the z-scores of neuro-image data that is not rectangular.'''
@@ -135,112 +138,17 @@ def load_plateaus(filename):
             plateaus.append([tuple([int(y) for y in x.split(';')]) for x in vals])
     return plateaus
 
-def plot_2d_data(data, filename, true_weights=None):
-    plt.figure()
-    plt.tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-    ax = plt.axes([.1,.1,.8,.7])
-    if true_weights is not None:
-        fig, axarr = plt.subplots(1,2)
-        ax = axarr[0]
-    cmap = cm.binary
-    cmap.set_bad('white', 1.)
-    masked_data = np.ma.array(data, mask=np.isnan(data))
-    heatmap = ax.imshow(masked_data, cmap=cmap, interpolation='None', origin='lower')
-    plt.colorbar(heatmap)
-    if true_weights is not None:
-        axarr[1].imshow(true_weights, cmap=cm.binary, interpolation='none', origin='lower')
-    #plt.title('Data visualization', fontsize=FIG_TITLE_FONTSIZE)
-    plt.savefig(filename, bbox_inches='tight')
-    plt.clf()
-
-def plot_1d_data(data, filename, split_points=None, split_weights=None):
-    fig = plt.figure()
-    plt.tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-    plt.scatter(np.arange(len(data)), data, color='lightgray')
-    if split_points is not None:
-        xmin = [0] + split_points[0:-1]
-        plt.hlines(y=split_weights, xmin=xmin, xmax=split_points, color='red')
-    plt.xlim(0,split_points[-1])
-    plt.savefig(filename, bbox_inches='tight')
-    plt.clf()
-    plt.close(fig)
-
-def plot_fmri_results(grid_data, weights, d2f, filename):
-    points = np.zeros(grid_data.shape)
-    points[:,:] = np.nan
-    points.T[d2f.T != -1] = weights
-    #print 'points[d2f != -1]: {0}'.format(points[d2f != -1])
-    #print 'd2f[50]: {0}'.format((d2f != -1)[50])
-    #print 'points[50]: {0}'.format(points[50])
-    plot_2d_results(grid_data, points.flatten(), filename)
-
-def plot_2d_results(data, weights, filename, true_weights=None):
-    fig = plt.figure()
-    #ax = plt.axes([.1,.1,.8,.7])
-    ax = plt.axes()
-    if true_weights is not None:
-        fig, axarr = plt.subplots(1,2)
-        axarr[0].tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-        axarr[0].imshow(true_weights, cmap=cm.binary, interpolation='none', origin='lower')
-        axarr[0].set_title('Truth', fontsize=FIG_TITLE_FONTSIZE)
-        ax = axarr[1]
-    ax.tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-    cmap = cm.binary
-    cmap.set_bad('white', 1.)
-    masked_data = np.ma.array(weights.reshape(data.shape), mask=np.isnan(data))
-    heatmap = ax.imshow(masked_data, cmap=cmap, interpolation='none', origin='lower')
-    #heatmap.set_norm(colors.Normalize(vmin=0.1, vmax=0.9, clip=True))
-    heatmap.set_norm(colors.Normalize(vmin=0., vmax=1.))
-    ax.set_title('Smoothed FDR', fontsize=FIG_TITLE_FONTSIZE)
-    fig.subplots_adjust(right=0.8)
-    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    fig.colorbar(heatmap, cax=cbar_ax)
-    #plt.colorbar(heatmap)
-    #fig.colorbar(heatmap, ax=axes)
-    plt.savefig(filename, bbox_inches='tight')
-    plt.clf()
-    plt.close(fig)
-
-def plot_1d_results(data, weights, filename, split_points=None, split_weights=None):
-    fig, ax = plt.subplots()
-    ax.scatter(np.arange(len(data)), data, color='lightgray')
-    if split_points is not None:
-        xmin = [0] + split_points[0:-1]
-        ax.hlines(y=split_weights, xmin=xmin, xmax=split_points, color='blue', label='Truth')
-    ax.tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-    ax.plot(np.arange(len(weights)), weights, label='Smoothed FDR', color='orange')
-    ax.set_xlim(0,len(data))
-    box = ax.get_position()
-    ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(filename, bbox_inches='tight')
-    plt.clf()
-    plt.close(fig)
-
-def plot_path(results, filename):
-    fig, axarr = plt.subplots(1,4, sharex=True, figsize=(21, 5))
-    axarr[0].tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-    axarr[1].tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-    axarr[2].tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-    axarr[3].tick_params(axis='both', which='major', labelsize=FIG_TICK_LABEL_SIZE, width=FIG_TICK_WIDTH)
-    axarr[0].plot(results['lambda'], results['loglikelihood'], lw=FIG_LINE_WIDTH)
-    axarr[0].axvline(results['lambda'][np.argmax(results['loglikelihood'])], ymin=results['loglikelihood'].min(), ymax=results['loglikelihood'].max(), color='r', linestyle='--')
-    axarr[1].plot(results['lambda'], results['dof'], lw=FIG_LINE_WIDTH)
-    axarr[1].axvline(results['lambda'][np.argmin(results['dof'])], ymin=results['dof'].min(), ymax=results['dof'].max(), color='r', linestyle='--')
-    axarr[2].plot(results['lambda'], results['aic'], lw=FIG_LINE_WIDTH)
-    axarr[2].axvline(results['lambda'][np.argmin(results['aic'])], ymin=results['aic'].min(), ymax=results['aic'].max(), color='r', linestyle='--')
-    axarr[3].plot(results['lambda'], results['bic'], lw=FIG_LINE_WIDTH)
-    axarr[3].axvline(results['lambda'][np.argmin(results['bic'])], ymin=results['bic'].min(), ymax=results['bic'].max(), color='r', linestyle='--')
-    axarr[0].set_title('Log-Likelihood', fontsize=FIG_TITLE_FONTSIZE)
-    axarr[1].set_title('Degrees of Freedom', fontsize=FIG_TITLE_FONTSIZE)
-    axarr[2].set_title('AIC', fontsize=FIG_TITLE_FONTSIZE)
-    axarr[3].set_title('BIC', fontsize=FIG_TITLE_FONTSIZE)
-    fig.tight_layout()
-    plt.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
 
 def calc_signal_weights(args):
-    if args.dimensions == '2d':
+    if args.dimensions == '3d':
+        # Get the weights for each point in the 3d grid
+        return calculate_3d_signal_weights(args.width, args.height, args.depth,
+                                                  args.default_weight,
+                                                  args.region_min_x, args.region_max_x,
+                                                  args.region_min_y, args.region_max_y,
+                                                  args.region_min_z, args.region_max_z,
+                                                  args.region_weights)
+    elif args.dimensions == '2d':
         # Get the weights for each point in the 2d grid
         return calculate_2d_signal_weights(args.width, args.height,
                                                   args.default_weight,
@@ -258,6 +166,7 @@ def main():
 
     parser.add_argument('--verbose', type=int, default=0, help='Print detailed progress information to the console. 0=none, 1=outer-loop only, 2=all details.')
     parser.add_argument('--data_file', help='The file containing the raw z-score data.')
+    parser.add_argument('--no_data_header', action='store_true', help='Specifies that there is no header line in the data file.')
     parser.add_argument('--signals_file', help='The file containing the true signal points.')
     parser.add_argument('--generate_data', dest='generate_data', action='store_true', help='Generate synthetic data and save it to the file specified.')
     parser.add_argument('--save_weights', help='The file where the resulting smoothed weights will be saved.')
@@ -269,6 +178,7 @@ def main():
     parser.add_argument('--save_oracle_posteriors', help='The file where the oracle posteriors will be saved.')
 
     # Generic data settings
+    parser.add_argument('--empirical_null', dest='empirical_null', action='store_true', help='Estimate the null distribution empirically (recommended).')
     parser.add_argument('--null_mean', type=float, default=0., help='The mean of the null distribution.')
     parser.add_argument('--null_stdev', type=float, default=1., help='The variance of the null distribution.')
     parser.add_argument('--signal_mean', type=float, default=0., help='The mean of the signal distribution.')
@@ -308,21 +218,21 @@ def main():
     parser.add_argument('--postprocess_plateaus', dest='postprocess_plateaus', action='store_true', help='Perform unpenalized regression on each plateau as a final post-processing step.')
 
     # Smoothed FDR optimization settings
-    parser.add_argument('--converge', type=float, default=0.000001, help='The convergence threshold for the main optimization loop.')
+    parser.add_argument('--converge', type=float, default=1e-6, help='The convergence threshold for the main optimization loop.')
     parser.add_argument('--max_steps', type=int, default=100, help='The maximum number of steps for the main optimization loop.')
-    parser.add_argument('--m_converge', type=float, default=0.000001, help='The convergence threshold for the q-step <-> m-step loop.')
+    parser.add_argument('--m_converge', type=float, default=1e-6, help='The convergence threshold for the q-step <-> m-step loop.')
     parser.add_argument('--m_max_steps', type=float, default=1, help='The maximum number of steps for the q-step <-> m-step loop.')
-    parser.add_argument('--cd_converge', type=float, default=0.000001, help='The convergence threshold for the coordinate descent loop.')
-    parser.add_argument('--cd_max_steps', type=float, default=3000, help='The maximum number of steps for the coordinate descent loop.')
+    parser.add_argument('--cd_converge', type=float, default=1e-6, help='The convergence threshold for the inner loop.')
+    parser.add_argument('--cd_max_steps', type=float, default=100000, help='The maximum number of steps for the inner loop.')
     parser.add_argument('--admm_alpha', type=float, default=1.8, help='The step size value for the ADMM solver (if used).')
     parser.add_argument('--admm_adaptive', dest='admm_adaptive', action='store_true', help='Use an adaptive soft-thresholding value instead of the constant penalty value.')
     parser.add_argument('--admm_inflate', type=float, default=2., help='The inflation/deflation rate for the ADMM step size.')
-    parser.add_argument('--dual_solver', choices=['cd', 'sls', 'lbfgs', 'admm'], default='admm', help='The method used to solve box-constrained least squares problem in the dual formulation.')
+    parser.add_argument('--dual_solver', choices=['cd', 'sls', 'lbfgs', 'admm', 'graph'], default='admm', help='The method used to solve the fused lasso problem in the M-step.')
 
     # FDR reporting settings
     parser.add_argument('--fdr_level', type=float, default=0.1, help='The false discovery rate level to use when reporting discoveries.')
 
-    subparsers = parser.add_subparsers(dest='dimensions', help='The dimensions of the dataset (1d, 2d, or fmri).')
+    subparsers = parser.add_subparsers(dest='dimensions', help='The dimensions of the dataset (1d, 2d, 3d, or fmri).')
 
     # 1D data settings
     parser_1d = subparsers.add_parser('1d', help='Settings for 1-dimensional data.')
@@ -340,20 +250,38 @@ def main():
     parser_2d.add_argument('--region_weights', nargs='+', type=float, default=[0.5, 0.8], help='The value of the signal weight for every region.')
     parser_2d.add_argument('--default_weight', type=float, default=0.05, help='The default signal weight for any areas not in the specified regions.')
 
+    # 3D data settings
+    parser_3d = subparsers.add_parser('3d', help='Settings for 3-dimensional data.')
+    parser_3d.add_argument('--width', type=int, default=30, help='The width of the 3d grid')
+    parser_3d.add_argument('--height', type=int, default=30, help='The height of the 3d grid')
+    parser_3d.add_argument('--depth', type=int, default=30, help='The depth of the 3d grid')
+    parser_3d.add_argument('--region_min_x', nargs='+', type=int, default=[5, 15], help='The min x locations at which the signal weight changes.')
+    parser_3d.add_argument('--region_max_x', nargs='+', type=int, default=[15, 25], help='The max x locations at which the signal weight changes.')
+    parser_3d.add_argument('--region_min_y', nargs='+', type=int, default=[10, 20], help='The min y locations at which the signal weight changes.')
+    parser_3d.add_argument('--region_max_y', nargs='+', type=int, default=[20, 28], help='The max y locations at which the signal weight changes.')
+    parser_3d.add_argument('--region_min_z', nargs='+', type=int, default=[10, 20], help='The min y locations at which the signal weight changes.')
+    parser_3d.add_argument('--region_max_z', nargs='+', type=int, default=[20, 28], help='The max y locations at which the signal weight changes.')
+    parser_3d.add_argument('--region_weights', nargs='+', type=float, default=[0.5, 0.8], help='The value of the signal weight for every region.')
+    parser_3d.add_argument('--default_weight', type=float, default=0.05, help='The default signal weight for any areas not in the specified regions.')
+
     # fMRI settings -- i.e. 2D data that is non-rectangular
-    parser_fmri = subparsers.add_parser('fmri', help='Settings for fMRI data.')
+    parser_fmri = subparsers.add_parser('fmri', help='Settings for fMRI data. **DEPRECATED**')
     parser_fmri.add_argument('--filter_value', type=float, default=0., help='The value representing data to be ignored in the 2d grid (i.e. data not in the non-rectangular area.)')
     parser_fmri.add_argument('--positive_signal', dest='positive_signal', action='store_true', help='Set all z-scores less than zero to zero when estimating the signal.')
     parser_fmri.set_defaults(positive_signal=False)
 
-    parser.set_defaults(generate_data=False, admm_adaptive=False,
+    parser_graph = subparsers.add_parser('graph', help='Settings for generic graph connections. Note: --dual_solver must be "graph" as well.')
+    parser_graph.add_argument('--trails', help='The file containing the graph trails (use the maketrails utility in pygfl to generate these).')
+
+    parser.set_defaults(generate_data=False, no_data_header=False,
+                        empirical_null=False, admm_adaptive=False,
                         estimate_signal=False, plot_true_signal=False,
                         adaptive_lasso=False, postprocess_plateaus=False)
 
     # Get the arguments from the command line
     args = parser.parse_args()
 
-    matplotlib.rcParams['axes.linewidth'] = FIG_BORDER_WIDTH
+    mpl.rcParams['axes.linewidth'] = FIG_BORDER_WIDTH
 
     # Get the form of the signal distribution
     if args.signal_dist_name:
@@ -366,7 +294,7 @@ def main():
 
     if args.generate_data:
         if args.verbose:
-            print 'Generating data'
+            print 'Generating data and saving to {0}'.format(args.data_file)
 
         signal_weights = calc_signal_weights(args)
 
@@ -387,7 +315,7 @@ def main():
             data, d2f, f2d = filter_nonrectangular_data(grid_data, filter_value=args.filter_value)
         else:
             # Load the dataset from file
-            data = load_data(args.data_file)
+            data = load_data(args.data_file, header=not args.no_data_header)
 
         # Load the true signals from file
         if args.signals_file is not None:
@@ -401,7 +329,10 @@ def main():
             points, weights = (args.split_points, args.split_weights) if args.generate_data else (None, None)
             plot_1d_data(data, args.plot_data, split_points=points, split_weights=weights)
         elif args.dimensions == '2d':
-            plot_2d_data(data, args.plot_data,
+            plot_2d(args.plot_data, data, weights=None,
+                        true_weights=signal_weights if args.generate_data else None)
+        elif args.dimensions == '3d':
+            plot_3d(args.plot_data, data, weights=None,
                         true_weights=signal_weights if args.generate_data else None)
         elif args.dimensions == 'fmri':
             empty_bg = np.zeros(grid_data.shape)
@@ -409,12 +340,18 @@ def main():
             empty_bg[d2f != -1] = np.abs(data)
             if args.positive_signal:
                 empty_bg[grid_data < 0] = 0
-            plot_2d_data(empty_bg, args.plot_data)
+            plot_2d(args.plot_data, empty_bg)
 
-    print 'Using known null distribution: N({0}, {1}^2)'.format(
-                                                args.null_mean,
-                                                args.null_stdev)
-    null_dist = GaussianKnown(args.null_mean, args.null_stdev)
+    if args.empirical_null:
+        print 'Estimating null distribution empirically via Efron\'s method.'
+        null_mean, null_stdev = empirical_null(data.flatten()) # use the default parameters
+        null_dist = GaussianKnown(null_mean, null_stdev)
+        print 'Null: N({0}, {1}^2)'.format(null_mean, null_stdev)
+    else:
+        print 'Using known null distribution: N({0}, {1}^2)'.format(
+                                                    args.null_mean,
+                                                    args.null_stdev)
+        null_dist = GaussianKnown(args.null_mean, args.null_stdev)
 
     if args.save_oracle_posteriors:
         signal_weights = calc_signal_weights(args)
@@ -487,8 +424,12 @@ def main():
         penalties = sparse_1d_penalty_matrix(len(data))
     elif args.dimensions == '2d':
         penalties = sparse_2d_penalty_matrix(data.shape)
+    elif args.dimensions == '3d':
+        penalties = load_trails_from_reader(cube_trails(data.shape[0], data.shape[1], data.shape[2]))
     elif args.dimensions == 'fmri':
         penalties = sparse_2d_penalty_matrix(grid_data.shape, nonrect_to_data=d2f)
+    elif args.dimensions == 'graph':
+        penalties = load_trails(args.trails)
 
     if args.verbose:
         print 'Starting Smoothed FDR Experiment'
@@ -506,7 +447,9 @@ def main():
             grid_data=None
             grid_map=None
 
-        results = fdr.solution_path(data, penalties,
+        passed_data = data.flatten() if args.dual_solver == 'graph' else data
+
+        results = fdr.solution_path(passed_data, penalties,
             dof_tolerance=args.dof_tolerance, min_lambda=args.min_penalty_weight,
             max_lambda=args.max_penalty_weight, lambda_bins=args.penalty_bins,
             converge=args.converge, max_steps=args.max_steps,
@@ -534,13 +477,16 @@ def main():
                     plot_1d_results(data, ith_weights, ith_filename,
                                 split_points=points, split_weights=split_weights)
                 elif args.dimensions == '2d':
-                    plot_2d_results(data, ith_weights, ith_filename,
+                    plot_2d(ith_filename, data, weights=ith_weights,
+                                true_weights=signal_weights if args.generate_data else None)
+                elif args.dimensions == '3d':
+                    plot_3d(ith_filename, data, weights=ith_weights,
                                 true_weights=signal_weights if args.generate_data else None)
                 elif args.dimensions == 'fmri':
                     plot_fmri_results(grid_data, ith_weights, d2f, ith_filename)
 
-        weights = results['c'][results['best']]
-        posteriors = results['w'][results['best']]
+        weights = results['c'][results['best']].reshape(data.shape)
+        posteriors = results['w'][results['best']].reshape(data.shape)
         plateaus = results['plateaus']
         _lambda = results['lambda'][results['best']]
     else:
@@ -574,7 +520,10 @@ def main():
             plot_1d_results(data, weights, args.plot_results,
                         split_points=points, split_weights=split_weights)
         elif args.dimensions == '2d':
-            plot_2d_results(data, weights, args.plot_results,
+            plot_2d(args.plot_results, data, weights=weights,
+                        true_weights=signal_weights if args.generate_data else None)
+        elif args.dimensions == '3d':
+            plot_3d(args.plot_results, data, weights=weights,
                         true_weights=signal_weights if args.generate_data else None)
         elif args.dimensions == 'fmri':
             plot_fmri_results(grid_data, weights, d2f, args.plot_results)
@@ -582,14 +531,23 @@ def main():
     if args.save_weights:
         if args.verbose:
             print 'Saving weights to {0}'.format(args.save_weights)
-        np.savetxt(args.save_weights, weights, delimiter=",")
+        if args.dimensions == '3d':
+            np.savetxt(args.save_weights, weights.flatten(), delimiter=",")
+        else:
+            np.savetxt(args.save_weights, weights, delimiter=",")
 
     if args.save_posteriors:
         if args.verbose:
             print 'Saving posteriors to {0}'.format(args.save_posteriors)
-        np.savetxt(args.save_posteriors, posteriors, delimiter=",")
+        if args.dimensions == '3d':
+            np.savetxt(args.save_posteriors, posteriors.flatten(), delimiter=",")
+        else:
+           np.savetxt(args.save_posteriors, posteriors, delimiter=",")
 
-    fdr_signals = calc_fdr(posteriors, args.fdr_level)
+    if args.dimensions == '3d' or args.dimensions == '2d':
+        fdr_signals = calc_fdr(posteriors.flatten(), args.fdr_level).reshape(data.shape)
+    else:
+        fdr_signals = calc_fdr(posteriors, args.fdr_level)
     if args.plot_discoveries:
         if args.verbose:
             print 'Plotting discoveries with FDR level of {0:.2f}%'.format(args.fdr_level * 100)
@@ -642,7 +600,10 @@ def main():
                 plot_1d_results(data, weights, args.plot_adaptive,
                             split_points=points, split_weights=split_weights)
             elif args.dimensions == '2d':
-                plot_2d_results(data, weights, args.plot_adaptive,
+                plot_2d(args.plot_adaptive, data, weights=weights,
+                            true_weights=signal_weights if args.generate_data else None)
+            elif args.dimensions == '3d':
+                plot_3d(args.plot_adaptive, data, weights=weights,
                             true_weights=signal_weights if args.generate_data else None)
 
     if args.postprocess_plateaus:
@@ -658,12 +619,18 @@ def main():
     if args.save_final_weights:
         if args.verbose:
             print 'Saving weights to {0}'.format(args.save_final_weights)
-        np.savetxt(args.save_final_weights, weights, delimiter=",")
+        if args.dimensions == '3d':
+            np.savetxt(args.save_final_weights, weights.flatten(), delimiter=",")
+        else:
+            np.savetxt(args.save_final_weights, weights, delimiter=",")
 
     if args.save_final_posteriors:
         if args.verbose:
             print 'Saving posteriors to {0}'.format(args.save_final_posteriors)
-        np.savetxt(args.save_final_posteriors, posteriors, delimiter=",")
+        if args.dimensions == '3d':
+            np.savetxt(args.save_final_posteriors, posteriors.flatten(), delimiter=",")
+        else:
+            np.savetxt(args.save_final_posteriors, posteriors, delimiter=",")
 
 
     if args.plot_final:
@@ -674,12 +641,18 @@ def main():
             plot_1d_results(data, weights, args.plot_final,
                         split_points=points, split_weights=split_weights)
         elif args.dimensions == '2d':
-            plot_2d_results(data, weights, args.plot_final,
+            plot_2d(args.plot_final, data, weights=weights,
+                        true_weights=signal_weights if args.generate_data else None)
+        elif args.dimensions == '3d':
+            plot_3d(args.plot_final, data, weights=weights,
                         true_weights=signal_weights if args.generate_data else None)
         elif args.dimensions == 'fmri':
             plot_fmri_results(grid_data, weights, d2f, args.plot_final)
 
-    fdr_signals = calc_fdr(posteriors, args.fdr_level)
+    if args.dimensions == '3d':
+        fdr_signals = calc_fdr(posteriors.flatten(), args.fdr_level).reshape(data.shape)
+    else:
+        fdr_signals = calc_fdr(posteriors, args.fdr_level)
     if args.plot_final_discoveries:
         if args.verbose:
             print 'Plotting discoveries with FDR level of {0:.2f}%'.format(args.fdr_level * 100)

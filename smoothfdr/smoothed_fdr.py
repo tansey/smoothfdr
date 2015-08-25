@@ -6,6 +6,7 @@ from scipy.optimize import minimize, minimize_scalar
 from scipy.sparse import csc_matrix, linalg as sla
 from functools import partial
 from collections import deque
+from pygfl.solver import TrailSolver
 
 class GaussianKnown:
     '''
@@ -40,6 +41,16 @@ class SmoothedFdr(object):
         self.c_iters = []
         self.delta_iters = []
 
+        # ''' Load the graph fused lasso library '''
+        # graphfl_lib = cdll.LoadLibrary('libgraphfl.so')
+        # self.graphfl_weight = graphfl_lib.graph_fused_lasso_weight_warm
+        # self.graphfl_weight.restype = c_int
+        # self.graphfl_weight.argtypes = [c_int, ndpointer(c_double, flags='C_CONTIGUOUS'), ndpointer(c_double, flags='C_CONTIGUOUS'),
+        #                     c_int, ndpointer(c_int, flags='C_CONTIGUOUS'), ndpointer(c_int, flags='C_CONTIGUOUS'),
+        #                     c_double, c_double, c_double, c_int, c_double,
+        #                     ndpointer(c_double, flags='C_CONTIGUOUS'), ndpointer(c_double, flags='C_CONTIGUOUS'), ndpointer(c_double, flags='C_CONTIGUOUS')]
+        self.solver = TrailSolver()
+
     def add_step(self, w, beta, c, delta):
         self.w_iters.append(w)
         self.beta_iters.append(beta)
@@ -65,7 +76,7 @@ class SmoothedFdr(object):
             admm_alpha=1., admm_inflate=2., admm_adaptive=False, initial_values=None,
             grid_data=None, grid_map=None):
         '''Follows the solution path of the generalized lasso to find the best lambda value.'''
-        lambda_grid = np.linspace(max_lambda, min_lambda, lambda_bins)
+        lambda_grid = np.exp(np.linspace(np.log(max_lambda), np.log(min_lambda), lambda_bins))
         aic_trace = np.zeros(lambda_grid.shape) # The AIC score for each lambda value
         aicc_trace = np.zeros(lambda_grid.shape) # The AICc score for each lambda value (correcting for finite sample size)
         bic_trace = np.zeros(lambda_grid.shape) # The BIC score for each lambda value
@@ -79,6 +90,7 @@ class SmoothedFdr(object):
         best_idx = None
         best_plateaus = None
         flat_data = data.flatten()
+        edges = penalties[3] if dual_solver == 'graph' else None
         if grid_data is not None:
                 grid_points = np.zeros(grid_data.shape)
                 grid_points[:,:] = np.nan
@@ -106,7 +118,7 @@ class SmoothedFdr(object):
                 grid_points = results['beta'].reshape(data.shape)
 
             # Count the number of free parameters in the grid (dof)
-            plateaus = calc_plateaus(grid_points, dof_tolerance)
+            plateaus = calc_plateaus(grid_points, dof_tolerance, edges=edges)
             dof_trace[i] = len(plateaus)
             #dof_trace[i] = (np.abs(penalties.dot(results['beta'])) >= dof_tolerance).sum() + 1 # Use the naive DoF
 
@@ -200,19 +212,14 @@ class SmoothedFdr(object):
                                    admm_alpha=admm_alpha,
                                    u0=u)
 
+            # Get the signal probabilities
+            prior_prob = ilogit(beta)
+            cur_nll = self._data_negative_log_likelihood(data, prior_prob)
+
             if dual_solver == 'admm':
-                # Get the signal probabilities
-                prior_prob = ilogit(beta)
-
                 # Get the negative log-likelihood of the data given our new parameters
-                cur_nll = self._data_negative_log_likelihood(data, prior_prob) + _lambda * np.abs(u['r']).sum()
-            else:
-                # Get the signal probabilities
-                prior_prob = np.exp(beta) / (1 + np.exp(beta))
-
-                # Get the negative log-likelihood of the data given our new parameters
-                cur_nll = self._data_negative_log_likelihood(data, prior_prob)
-
+                cur_nll += _lambda * np.abs(u['r']).sum()
+            
             # Track the change in log-likelihood to see if we've converged
             delta = np.abs(cur_nll - prev_nll) / (prev_nll + converge)
 
@@ -233,7 +240,8 @@ class SmoothedFdr(object):
                 print '\tbeta: [{0:.4f}, {1:.4f}]'.format(beta.min(), beta.max())
                 print '\tprior_prob:    [{0:.4f}, {1:.4f}]'.format(prior_prob.min(), prior_prob.max())
                 print '\tpost_prob:    [{0:.4f}, {1:.4f}]'.format(post_prob.min(), post_prob.max())
-                print '\tdegrees of freedom: {0}'.format((np.abs(penalties.dot(beta)) >= 1e-4).sum())
+                if dual_solver != 'graph':
+                    print '\tdegrees of freedom: {0}'.format((np.abs(penalties.dot(beta)) >= 1e-4).sum())
 
         # Return the results of the run
         return {'beta': beta, 'u': u, 'w': post_prob, 'c': prior_prob}
@@ -273,7 +281,7 @@ class SmoothedFdr(object):
             exp_beta = np.exp(beta)
 
             # Form the parameters for our weighted least squares
-            if dual_solver != 'admm':
+            if dual_solver != 'admm' and dual_solver != 'graph':
                 # weights is a diagonal matrix, represented as a vector for efficiency
                 weights = 0.5 * exp_beta / (1 + exp_beta)**2
                 y = (1+exp_beta)**2 * post_prob / exp_beta + beta - (1 + exp_beta)
@@ -302,10 +310,13 @@ class SmoothedFdr(object):
                                         verbose > 1, initial_values=u, inflate=admm_inflate,
                                         adaptive=admm_adaptive, alpha=admm_alpha)
                 beta = u['x']
+            elif dual_solver == 'graph':
+                u = self._graph_fused_lasso(y, weights, _lambda, penalties[0], penalties[1], penalties[2], penalties[3], cd_converge, cd_max_steps, max(0, verbose - 1), admm_alpha, admm_inflate, initial_values=u)
+                beta = u['beta']
             else:
-                raise Exception('Uknown solver: {0}'.format(dual_solver))
+                raise Exception('Unknown solver: {0}'.format(dual_solver))
 
-            if dual_solver != 'admm':
+            if dual_solver != 'admm' and dual_solver != 'graph':
                 # Back out beta from the dual solution
                 beta = y - (1. / weights) * penalties.T.dot(u)
 
@@ -329,6 +340,34 @@ class SmoothedFdr(object):
     def _m_log_likelihood(self, post_prob, beta):
         '''Calculate the log-likelihood of the betas given the weights and data.'''
         return (np.log(1 + np.exp(beta)) - post_prob * beta).sum()
+
+    def _graph_fused_lasso(self, y, weights, _lambda, ntrails, trails, breakpoints, edges, converge, max_steps, verbose, alpha, inflate, initial_values=None):
+        '''Solve for u using a super fast graph fused lasso library that has an optimized ADMM routine.'''
+        if verbose:
+            print '\t\tSolving via Graph Fused Lasso'
+        # if initial_values is None:
+        #     beta = np.zeros(y.shape, dtype='double')
+        #     z = np.zeros(breakpoints[-1], dtype='double')
+        #     u = np.zeros(breakpoints[-1], dtype='double')
+        # else:
+        #     beta = initial_values['beta']
+        #     z = initial_values['z']
+        #     u = initial_values['u']
+        # n = y.shape[0]
+        # self.graphfl_weight(n, y, weights, ntrails, trails, breakpoints, _lambda, alpha, inflate, max_steps, converge, beta, z, u)
+        # return {'beta': beta, 'z': z, 'u': u }
+        self.solver.alpha = alpha
+        self.solver.inflate = inflate
+        self.solver.maxsteps = max_steps
+        self.solver.converge = converge
+        self.solver.set_data(y, edges, ntrails, trails, breakpoints, weights=weights)
+        if initial_values is not None:
+            self.solver.beta = initial_values['beta']
+            self.solver.z = initial_values['z']
+            self.solver.u = initial_values['u']
+        self.solver.solve(_lambda)
+        return {'beta': self.solver.beta, 'z': self.solver.z, 'u': self.solver.u }
+        
 
     def _u_admm_lucache(self, y, weights, _lambda, D, converge_threshold, max_steps, verbose, alpha=1.8, initial_values=None,
                             inflate=2., adaptive=False):
@@ -706,9 +745,9 @@ def tridiagonal_solve(a,b,c,f):
 def ilogit(x):
     return 1. / (1. + np.exp(-x))
 
-def calc_plateaus(beta, rel_tol=1e-4, verbose=0):
+def calc_plateaus(beta, rel_tol=1e-4, edges=None, verbose=0):
     '''Calculate the plateaus (degrees of freedom) of a 1d or 2d grid of beta values in linear time.'''
-    to_check = deque(itertools.product(*[range(x) for x in beta.shape]))
+    to_check = deque(itertools.product(*[range(x) for x in beta.shape])) if edges is None else deque(xrange(len(beta)))
     check_map = np.zeros(beta.shape, dtype=bool)
     check_map[np.isnan(beta)] = True
     plateaus = []
@@ -752,8 +791,12 @@ def calc_plateaus(beta, rel_tol=1e-4, verbose=0):
             # neighbors to check
             local_check = []
 
+            # Generic graph case
+            if edges is not None:
+                local_check.extend(edges[idx])
+
             # 1d case -- check left and right
-            if len(beta.shape) == 1:
+            elif len(beta.shape) == 1:
                 if idx[0] > 0:
                     local_check.append(idx[0] - 1) # left
                 if idx[0] < beta.shape[0] - 1:
@@ -772,7 +815,7 @@ def calc_plateaus(beta, rel_tol=1e-4, verbose=0):
 
             # Only supports 1d and 2d cases for now
             else:
-                raise Exception('Degrees of freedom calculation does not currently support more than 2 dimensions. ({0} given)'.format(len(beta.shape)))
+                raise Exception('Degrees of freedom calculation does not currently support more than 2 dimensions unless edges are specified explicitly. ({0} given)'.format(len(beta.shape)))
 
             # Check the index's unchecked neighbors
             for local_idx in local_check:

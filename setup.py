@@ -10,7 +10,7 @@ with open(path.join(here, 'DESCRIPTION.rst'), encoding='utf-8') as f:
 
 setup(
     name='smoothfdr',
-    version='0.9.0',
+    version='0.9.1',
     description='False discovery rate smoothing',
     long_description=long_description,
     url='https://github.com/tansey/smoothfdr',
@@ -30,13 +30,15 @@ setup(
     keywords='statistics biostatistics fdr hypothesis machinelearning',
 
     packages=find_packages(exclude=['contrib', 'docs', 'tests*']),
-    install_requires=['numpy', 'scipy', 'matplotlib'],
+    install_requires=['numpy', 'scipy', 'matplotlib', 'pygfl'],
     package_data={
         'smoothfdr': [],
     },
     entry_points={
         'console_scripts': [
             'smoothfdr=smoothfdr:main',
+            'neuropre=neuropre:main',
+            'neuropost=neuropost:main',
         ],
     },
 )
