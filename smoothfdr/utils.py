@@ -267,9 +267,40 @@ def vector_str(p, decimal_places=2):
     style = '{0:.' + str(decimal_places) + 'f}'
     return '[{0}]'.format(", ".join([style.format(a) for a in p]))
 
+def median_filter(pvals, edges):
+    '''Given a list of p-values and their neighbors, applies a median filter
+    that replaces each p_i with p*_i where p*_i = median(neighbors(p_i)).'''
+    return np.array([np.median(pvals[edges[i] + [i]]) for i,p in enumerate(pvals)])
 
+def _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tmin, tmax, tmin_fdr, tmax_fdr, rel_tol=1e-4):
+    '''Finds the t-level via binary search.'''
+    if np.isclose(tmin, tmax, atol=rel_tol) or np.isclose(tmin_fdr, tmax_fdr, atol=rel_tol) or tmax_fdr <= fdr_level:
+        return (tmax, tmax_fdr) if tmax_fdr <= fdr_level else (tmin, tmin_fdr)
+    tmid = (tmax + tmin) / 2.
+    tmid_fdr = wstar_lambda * ghat(p_star, tmid) / (max(1,(p_star < tmid).sum()) * (1-ghat_lambda))
+    print 't: [{0}, {1}, {2}] => fdr: [{3}, {4}, {5}]'.format(tmin, tmid, tmax, tmin_fdr, tmid_fdr, tmax_fdr)
+    if tmid_fdr <= fdr_level:
+        return _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tmid, tmax, tmid_fdr, tmax_fdr)
+    return _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tmin, tmid, tmin_fdr, tmid_fdr)
 
-
+def local_agg_fdr(pvals, edges, fdr_level, lmbda = 0.1):
+    '''Given a list of p-values and the graph connecting them, applies a median
+    filter to locally aggregate them and then performs a corrected FDR procedure
+    from Zhang, Fan, and Yu (Annals of Statistics, 2011). lmbda is a tuning
+    constant typically set to 0.1.'''
+    p_star = median_filter(pvals, edges) # aggregate p-values
+    ghat = lambda p, t: (p >= (1-t)).sum() / max(1., (2.0 * (p > 0.5).sum() + (p==0.5).sum())) # empirical null CDF
+    wstar_lambda = (p_star > lmbda).sum() # number of nonrejects at the level lambda
+    ghat_lambda = ghat(p_star, lmbda) # empirical null CDF at rejection level lambda    
+    # Use binary search to find the highest t value that satisfies the fdr level
+    tmin = 0.
+    tmax = 1.
+    tmin_fdr = wstar_lambda * ghat(p_star, tmin) / (max(1,(p_star < tmin).sum()) * (1-ghat_lambda))
+    tmax_fdr = wstar_lambda * ghat(p_star, tmax) / (max(1,(p_star < tmax).sum()) * (1-ghat_lambda))
+    t, tfdr = _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tmin, tmax, tmin_fdr, tmax_fdr)
+    print 't: {0} tfdr: {1}'.format(t, tfdr)
+    # Returns the indices of all discoveries
+    return np.where(p_star < t)
 
 
 
