@@ -26,63 +26,54 @@ There are lots of parameters that you can play with if you so choose, but one of
 To run a simple example, we can generate our own synthetic data:
 
 ```
-smoothfdr --signals_file test.signals --generate_data --signal_dist_name alt1 --estimate_signal --solution_path --data_file test.data \
- --plot_data test_data.pdf --plot_signal test_signal.pdf --plot_true_signal --plot_path test_path.pdf --plot_results test_results.pdf \
- --verbose 1 \
- 2d
+gen2d example/data.csv example/true_weights.csv example/true_signals.csv example/oracle_posteriors.csv example/edges.csv example/trails.csv --signal_dist_name alt1 --plot example/data.png
 ```
 
-This will run the algorithm on a synthetic dataset that is generated on-the-fly. The algorithm will auto-tune its parameters by following a solution path approach where it tries multiple values. The result will be several plots:
+The above command generates a dataset of 128x128 test sites arranged along a grid, with spatial dependence between adjacent neighbors. The true prior probability of sampling from the null distribution and an example of the realized values is below:
 
 ### Visualizations of the true priors and raw data
 
-![Visualizations of the true priors and raw data](https://raw.githubusercontent.com/tansey/smoothfdr/master/data/test_data.png)
+![Visualizations of the true priors and raw data](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/data.png)
 
-### Density plots of the true and estimated signal distributions
+Given this dataset, we can now run the FDR smoothing algorithm to try and estimate the true prior regions and improve the power of our hypothesis tests:
 
-![Density plots of the true and estimated signal distributions](https://raw.githubusercontent.com/tansey/smoothfdr/master/data/test_signal.png)
+```
+smoothfdr --data_file example/data.csv --no_data_header \
+--empirical_null --estimate_signal --solution_path --dual_solver graph \
+--save_weights example/sfdr_weights.csv \
+--save_posteriors example/sfdr_posteriors.csv \
+--save_plateaus example/sfdr_plateaus.csv \
+--save_signal example/sfdr_estimated_signal.csv \
+--save_discoveries example/sfdr_discoveries.csv \
+--plot_path example/solution_path.png \
+--verbose 1 \
+graph --trails example/trails.csv
+```
+
+The first line simply feeds in the data and specifies there is no header line in the data file. The second line specifies the details of the FDR smoothing run-- we want to empirically estimate the null (as opposed to assuming a standard normal), estimate the alternative hypothesis distribution, automatically tune the hyperparameters by evaluating an entire solution path of possible values, and we want to use the fast graph-based fused lasso solver.
+
+This last part is then specified further in the last line by saying our data is aranged as an arbitrary graph and trails have been created already. Trails were created automatically for us in gen2d; if you want to create your own trails for your specific dataset, you can use the `trails` command-line call from the [pygfl package](https://github.com/tansey/gfl), which is automatically installed as part of the `smoothfdr` package.
 
 ### Solution path diagnostics
 
-![Solution path diagnostics](https://raw.githubusercontent.com/tansey/smoothfdr/master/data/test_path.png)
+![Solution path diagnostics](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/solution_path.png)
 
 ### Resulting plateaus detected
 
-![Resulting plateaus detected](https://raw.githubusercontent.com/tansey/smoothfdr/master/data/test_results.png)
+![Resulting plateaus detected](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/estimated_priors.png)
 
 For a detailed list of commands, just run `smoothfdr -h`.
 
-Running an example on an arbitrary graph
-========================================
+## TODO
 
-If your problem is not structured simply according to a 1d, 2d, or 3d grid, then you will want to run using the __graph__ type. This uses the `pygfl` package to solve the underlying graph-fused lasso problem. You'll need a CSV file containing the list of edges in the format:
+The package should be fully functional at the moment, however, a few things could be improved:
 
-```
-0,1
-1,2
-2,10
-5,15
-3,0
-...
-```
+- The predictive recursion function is currently pretty slow due to being a pure python implementation. That will soon be replaced by a C implementation which will be released as another package and incorporated into this one in a future update.
 
-where the first and second numbers correspond to the index of the node in the graph. Assuming this file is `test/edges.csv`, the first step is to generate the setup files for `pygfl`:
+- The trail creation is a bit awkward and probably should be automated. In practice, it probably isn't a big deal if your trails are super optimal, so just using the default trail decomposition algorithm in `pygfl` should be fine.
 
-```
-maketrails file --infile test/edges.csv --savet test/trails.csv
-```
+- The plotting could be improved. Currently, you have to run using the slower 2d or 3d solver in order to plot some of the results. That all needs to be replaced and in general the commandline interface should be streamlined to just work with generic graphs. This was mainly due historical progress of finding increasingly more efficient solutions to the optimization problem and wanting to be able to benchmark all of them. At this point it seems clear that the trail-based solver is the fastest and most robust, so it should just be the only solver in the package.
 
-You can then run FDR smoothing using the `graph` setting, applied to some z-score file called `test/data.csv`:
-
-```
-smoothfdr --data_file test/data.csv \
---empirical_null --estimate_signal --solution_path --dual_solver graph --fdr_level 0.1 \
---save_weights test/weights.csv --save_posteriors test/posteriors.csv --save_signal test/signal.csv --save_plateaus test/plateaus.csv \
---plot_path test/plot_path.pdf --plot_signal test/plot_signal.pdf \
-graph --trails test/trails.csv
-```
-
-The first line simply specifies the data file containing the vector z-scores. The second line specifies that the null and alternative (signal) distributions should be estimated from the data, that a solution path approach should be used to auto-tune the hyperparameters, and that we're using a false discovery rate of 10%. The third and fourth lines specify where to save the various types of output from the algorithm-- note that the weights (AKA priors) and posteriors are what you are most likely interested in here. Finally, the last line specifies we're using the graph-fused lasso solver and provides the setup file we generated previously.
 
 
 

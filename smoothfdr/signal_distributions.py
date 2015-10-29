@@ -17,6 +17,12 @@ def alt3_pdf(x):
 def alt4_pdf(x):
     return 0.2 * norm.pdf(x, -3, np.sqrt(0.01)) + 0.3 * norm.pdf(x, -1.5, np.sqrt(0.01)) + 0.3 * norm.pdf(x, 1.5, np.sqrt(0.01)) + 0.2 * norm.pdf(x, 3, np.sqrt(0.01))
 
+def well_separated_pdf(x):
+    return 0.5 * norm.pdf(x, -2.5, 1) + 0.5 * norm.pdf(x, 2.5, 1)
+
+def flat_unimodal_pdf(x):
+    return norm.pdf(x, 0, 3)
+
 def alt1_noisy_pdf(x):
     return 0.48 * norm.pdf(x, -2, np.sqrt(1+1)) + 0.04 * norm.pdf(x, 0, np.sqrt(16+1)) + 0.48 * norm.pdf(x, 2, np.sqrt(1+1))
 
@@ -29,6 +35,11 @@ def alt3_noisy_pdf(x):
 def alt4_noisy_pdf(x):
     return 0.2 * norm.pdf(x, -3, np.sqrt(0.01+1)) + 0.3 * norm.pdf(x, -1.5, np.sqrt(0.01+1)) + 0.3 * norm.pdf(x, 1.5, np.sqrt(0.01+1)) + 0.2 * norm.pdf(x, 3, np.sqrt(0.01+1))
 
+def well_separated_noisy_pdf(x):
+    return 0.5 * norm.pdf(x, -2.5, np.sqrt(2)) + 0.5 * norm.pdf(x, 2.5, np.sqrt(2))
+
+def flat_unimodal_noisy_pdf(x):
+    return norm.pdf(x, 0, np.sqrt(10))
 
 def alt1_sample():
     u = np.random.random()
@@ -63,6 +74,15 @@ def alt4_sample():
     elif u <= 0.8:
         return np.random.normal(1.5, np.sqrt(0.01))
     return np.random.normal(3, np.sqrt(0.01))
+
+def well_separated_sample():
+    u = np.random.random()
+    if u <= 0.5:
+        return np.random.normal(-2.5, 1)
+    return np.random.normal(2.5, 1)
+
+def flat_unimodal_sample():
+    return np.random.normal(0, 3)
     
 def test_pdf(x):
     return norm.pdf(x, 3, 1)

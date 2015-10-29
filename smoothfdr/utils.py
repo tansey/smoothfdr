@@ -2,7 +2,7 @@ import numpy as np
 import csv
 from collections import defaultdict
 from scipy.sparse import csc_matrix, lil_matrix
-
+import scipy.stats as st
 
 class ProxyDistribution:
     '''Simple proxy distribution to enable specifying signal distributions from the command-line'''
@@ -21,6 +21,27 @@ class ProxyDistribution:
 
     def __repr__(self):
         return self.name
+
+def generate_data_helper(flips, null_mean, null_stdev, signal_dist):
+    '''Recursively builds multi-dimensional datasets.'''
+    if len(flips.shape) > 1:
+        return np.array([generate_data_helper(row, null_mean, null_stdev, signal_dist) for row in flips])
+
+    # If we're on the last dimension, return the vector
+    return np.array([signal_dist.sample() if flip else 0 for flip in flips]) + np.random.normal(loc=null_mean, scale=null_stdev, size=len(flips))
+
+def generate_data(null_mean, null_stdev, signal_dist, signal_weights):
+    '''Create a synthetic dataset.'''
+    # Flip biased coins to decide which distribution to draw each sample from
+    flips = np.random.random(size=signal_weights.shape) < signal_weights
+
+    # Recursively generate the dataset
+    samples = generate_data_helper(flips, null_mean, null_stdev, signal_dist)
+
+    # Observed z-scores
+    z = (samples - null_mean) / null_stdev
+
+    return (z, flips)
 
 def calc_fdr(probs, fdr_level):
     '''Calculates the detected signals at a specific false discovery rate given the posterior probabilities of each point.'''
@@ -300,12 +321,23 @@ def local_agg_fdr(pvals, edges, fdr_level, lmbda = 0.1):
     t, tfdr = _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tmin, tmax, tmin_fdr, tmax_fdr)
     print 't: {0} tfdr: {1}'.format(t, tfdr)
     # Returns the indices of all discoveries
-    return np.where(p_star < t)
+    return np.where(p_star < t)[0]
 
+def p_value(z):
+    return 2*(1.0 - st.norm.cdf(np.abs(z)))
 
-
-
-
+def benjamini_hochberg(z, fdr):
+    '''Performs Benjamini-Hochberg multiple hypothesis testing on z at the given false discovery rate threshold.'''
+    p = p_value(z)
+    p_orders = np.argsort(p)
+    discoveries = []
+    m = float(len(p_orders))
+    for k, s in enumerate(p_orders):
+        if p[s] <= (k+1) / m * fdr:
+            discoveries.append(s)
+        else:
+            break
+    return np.array(discoveries)
 
 
 

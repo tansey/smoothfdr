@@ -10,7 +10,7 @@ with open(path.join(here, 'DESCRIPTION.rst'), encoding='utf-8') as f:
 
 setup(
     name='smoothfdr',
-    version='0.9.1',
+    version='0.9.4',
     description='False discovery rate smoothing',
     long_description=long_description,
     url='https://github.com/tansey/smoothfdr',
@@ -37,8 +37,9 @@ setup(
     entry_points={
         'console_scripts': [
             'smoothfdr=smoothfdr:main',
-            'neuropre=neuropre:main',
-            'neuropost=neuropost:main',
+            'neuropre=smoothfdr.neuropre:main',
+            'neuropost=smoothfdr.neuropost:main',
+            'gen2d=smoothfdr.gen2d:main'
         ],
     },
 )

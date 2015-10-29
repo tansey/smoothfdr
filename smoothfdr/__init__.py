@@ -44,39 +44,6 @@ def calculate_3d_signal_weights(width, height, depth, default_weight, x_min, x_m
         signal_weights[region[0]:region[1]+1,region[2]:region[3]+1,region[4]:region[5]+1] = region[6]
     return signal_weights
 
-def generate_data_helper(flips, null_mean, null_stdev, signal_dist):
-    '''Recursively builds multi-dimensional datasets.'''
-    if len(flips.shape) > 1:
-        return np.array([generate_data_helper(row, null_mean, null_stdev, signal_dist) for row in flips])
-
-    # If we're on the last dimension, return the vector
-    return np.array([signal_dist.sample() if flip else 0 for flip in flips]) + np.random.normal(loc=null_mean, scale=null_stdev, size=len(flips))
-
-def generate_data(null_mean, null_stdev, signal_dist, signal_weights):
-    '''Create a synthetic dataset.'''
-    # Flip biased coins to decide which distribution to draw each sample from
-    flips = np.random.random(size=signal_weights.shape) < signal_weights
-
-    # Recursively generate the dataset
-    samples = generate_data_helper(flips, null_mean, null_stdev, signal_dist)
-
-    # Observed z-scores
-    z = (samples - null_mean) / null_stdev
-
-    return (z, flips)
-
-def save_data(data, filename, header=True):
-    '''Saves a CSV file containing the z-scores.'''
-    with open(filename, 'wb') as f:
-        writer = csv.writer(f)
-        
-        # write a header line
-        if header:
-            writer.writerow(['Z{0}'.format(x+1) for x in xrange(data.shape[1])])
-
-        # write the data to file
-        writer.writerows(data)
-
 def load_data(filename, header=True):
     '''Loads a CSV file containing the z-scores.'''
     with open(filename, 'rb') as f:
@@ -176,8 +143,9 @@ def main():
     parser.add_argument('--save_signal', help='The file where the estimated signal will be saved.')
     parser.add_argument('--save_final_posteriors', help='The file where the final resulting posteriors after any postprocessing will be saved.')
     parser.add_argument('--save_oracle_posteriors', help='The file where the oracle posteriors will be saved.')
+    parser.add_argument('--save_discoveries', help='The file where the inferred discoveries will be saved.')
 
-    # Generic data settings
+    # Generic d
     parser.add_argument('--empirical_null', dest='empirical_null', action='store_true', help='Estimate the null distribution empirically (recommended).')
     parser.add_argument('--null_mean', type=float, default=0., help='The mean of the null distribution.')
     parser.add_argument('--null_stdev', type=float, default=1., help='The variance of the null distribution.')
@@ -548,6 +516,12 @@ def main():
         fdr_signals = calc_fdr(posteriors.flatten(), args.fdr_level).reshape(data.shape)
     else:
         fdr_signals = calc_fdr(posteriors, args.fdr_level)
+
+    if args.save_discoveries:
+        if args.verbose:
+            print 'Saving discoveries with FDR level of {0:.2f}% to {1}'.format(args.fdr_level*100, args.save_discoveries)
+        np.savetxt(args.save_discoveries, fdr_signals, delimiter=',', fmt='%d')
+
     if args.plot_discoveries:
         if args.verbose:
             print 'Plotting discoveries with FDR level of {0:.2f}%'.format(args.fdr_level * 100)

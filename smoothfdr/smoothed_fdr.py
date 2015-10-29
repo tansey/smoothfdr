@@ -22,6 +22,9 @@ class GaussianKnown:
     def sample(self):
         return np.random.normal(loc=self.mean, scale=self.stdev)
 
+    def noisy_pdf(self, data):
+        return norm.pdf(data, loc=self.mean, scale=np.sqrt(self.stdev**2 + 1))
+
     def __repr__(self):
         return 'N({0}, {1}^2)'.format(self.mean, self.stdev)
 
@@ -842,7 +845,6 @@ def plateau_loss_func(c, data, signal_dist, null_dist):
 def single_plateau_regression(data, signal_dist, null_dist):
     '''Perform unpenalized 1-d regression on all of the points in a plateau.'''
     return minimize_scalar(plateau_loss_func, args=(data, signal_dist, null_dist), bounds=(0,1), method='Bounded').x
-
 
 
 
