@@ -288,6 +288,11 @@ def vector_str(p, decimal_places=2):
     style = '{0:.' + str(decimal_places) + 'f}'
     return '[{0}]'.format(", ".join([style.format(a) for a in p]))
 
+def mean_filter(pvals, edges):
+    '''Given a list of p-values and their neighbors, applies a mean filter
+    that replaces each p_i with p*_i where p*_i = mean(neighbors(p_i)).'''
+    return np.array([np.mean(pvals[edges[i] + [i]]) for i,p in enumerate(pvals)])
+
 def median_filter(pvals, edges):
     '''Given a list of p-values and their neighbors, applies a median filter
     that replaces each p_i with p*_i where p*_i = median(neighbors(p_i)).'''
@@ -328,6 +333,9 @@ def p_value(z):
 
 def benjamini_hochberg(z, fdr):
     '''Performs Benjamini-Hochberg multiple hypothesis testing on z at the given false discovery rate threshold.'''
+    z_shape = z.shape if len(z.shape) > 1 else None
+    if z_shape is not None:
+        z = z.flatten()
     p = p_value(z)
     p_orders = np.argsort(p)
     discoveries = []
@@ -337,7 +345,12 @@ def benjamini_hochberg(z, fdr):
             discoveries.append(s)
         else:
             break
-    return np.array(discoveries)
+    discoveries = np.array(discoveries)
+    if z_shape is not None:
+        x = np.zeros(z.shape)
+        x[discoveries] = 1
+        discoveries = np.where(x.reshape(z_shape) == 1)
+    return discoveries
 
 
 

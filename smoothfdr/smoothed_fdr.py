@@ -75,7 +75,7 @@ class SmoothedFdr(object):
     def solution_path(self, data, penalties, dof_tolerance=1e-4,
             min_lambda=0.20, max_lambda=1.5, lambda_bins=30,
             converge=0.00001, max_steps=100, m_converge=0.00001,
-            m_max_steps=100, cd_converge=0.00001, cd_max_steps=100, verbose=0, dual_solver='admm',
+            m_max_steps=20, cd_converge=0.00001, cd_max_steps=1000, verbose=0, dual_solver='graph',
             admm_alpha=1., admm_inflate=2., admm_adaptive=False, initial_values=None,
             grid_data=None, grid_map=None):
         '''Follows the solution path of the generalized lasso to find the best lambda value.'''
@@ -175,7 +175,7 @@ class SmoothedFdr(object):
 
 
     def run(self, data, penalties, _lambda=0.1, converge=0.00001, max_steps=100, m_converge=0.00001,
-            m_max_steps=100, cd_converge=0.00001, cd_max_steps=100, verbose=0, dual_solver='admm',
+            m_max_steps=100, cd_converge=0.00001, cd_max_steps=100, verbose=0, dual_solver='graph',
             admm_alpha=1., admm_inflate=2., admm_adaptive=False, initial_values=None):
         '''Runs the Expectation-Maximization algorithm for the data with the given penalty matrix.'''
         delta = converge + 1
@@ -276,7 +276,7 @@ class SmoothedFdr(object):
         u = u0
         cur_step = 0
         while delta > converge and cur_step < max_steps:
-            if verbose:
+            if verbose > 1:
                 print '\t\tM-Step iteration #{0}'.format(cur_step)
                 print '\t\tTaylor approximation...'
 
@@ -288,13 +288,15 @@ class SmoothedFdr(object):
                 # weights is a diagonal matrix, represented as a vector for efficiency
                 weights = 0.5 * exp_beta / (1 + exp_beta)**2
                 y = (1+exp_beta)**2 * post_prob / exp_beta + beta - (1 + exp_beta)
-                if verbose:
+                if verbose > 1:
                     print '\t\tForming dual...'
                 x = np.sqrt(weights) * y
                 A = (1. / np.sqrt(weights))[:,np.newaxis] * penalties.T
             else:
-                weights = prior_prob * (1 - prior_prob)
+                weights = (prior_prob * (1 - prior_prob))
                 y = beta - (prior_prob - post_prob) / weights
+                print weights
+                print y
 
             if dual_solver == 'cd':
                 # Solve the dual via coordinate descent
@@ -316,6 +318,9 @@ class SmoothedFdr(object):
             elif dual_solver == 'graph':
                 u = self._graph_fused_lasso(y, weights, _lambda, penalties[0], penalties[1], penalties[2], penalties[3], cd_converge, cd_max_steps, max(0, verbose - 1), admm_alpha, admm_inflate, initial_values=u)
                 beta = u['beta']
+                # if np.abs(beta).max() > 20:
+                #     beta = np.clip(beta, -20, 20)
+                #     u = None
             else:
                 raise Exception('Unknown solver: {0}'.format(dual_solver))
 
@@ -329,7 +334,7 @@ class SmoothedFdr(object):
             # Track the convergence
             delta = np.abs(prev_nll - cur_nll) / (prev_nll + converge)
 
-            if verbose:
+            if verbose > 1:
                 print '\t\tM-step delta: {0}'.format(delta)
 
             # Increment the step counter
@@ -372,8 +377,7 @@ class SmoothedFdr(object):
         return {'beta': self.solver.beta, 'z': self.solver.z, 'u': self.solver.u }
         
 
-    def _u_admm_lucache(self, y, weights, _lambda, D, converge_threshold, max_steps, verbose, alpha=1.8, initial_values=None,
-                            inflate=2., adaptive=False):
+    def _u_admm_lucache(self, y, weights, _lambda, D, converge_threshold, max_steps, verbose, alpha=1.8, initial_values=None, inflate=2., adaptive=False):
         '''Solve for u using alternating direction method of multipliers with a cached LU decomposition.'''
         if verbose:
             print '\t\tSolving u via Alternating Direction Method of Multipliers'
