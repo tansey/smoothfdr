@@ -14,16 +14,22 @@ from networkx import Graph, connected_components
 from smoothfdr.normix import *
 from smoothfdr.utils import calc_fdr
 
-def smooth_fdr(data, edges, fdr_level, initial_values=None, verbose=0):
+def smooth_fdr(data, edges, fdr_level, initial_values=None, verbose=0, null_dist=None):
     # Decompose the graph into trails
     g = Graph()
     g.add_edges_from(edges)
     chains = decompose_graph(g, heuristic='greedy')
     ntrails, trails, breakpoints, edges = chains_to_trails(chains)
 
-    # empirical null estimation
-    mu0, sigma0 = empirical_null(data)
+    if null_dist is None:
+        # empirical null estimation
+        mu0, sigma0 = empirical_null(data, verbose=max(0,verbose-1))
+    else:
+        mu0, sigma0 = null_dist
     null_dist = GaussianKnown(mu0, sigma0)
+
+    if verbose:
+        print 'Empirical null: {0}'.format(null_dist)
 
     # signal distribution estimation
     num_sweeps = 10
@@ -37,6 +43,8 @@ def smooth_fdr(data, edges, fdr_level, initial_values=None, verbose=0):
     results = solution_path_smooth_fdr(data, solver, null_dist, signal_dist, verbose=max(0, verbose-1))
 
     results['discoveries'] = calc_fdr(results['posteriors'], fdr_level)
+    results['null_dist'] = null_dist
+    results['signal_dist'] = signal_dist
 
     return results
 

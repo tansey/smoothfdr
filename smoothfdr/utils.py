@@ -59,7 +59,7 @@ def calc_fdr(probs, fdr_level):
         avg_fdr = test_fdr
         end_fdr += 1
 
-    is_finding = np.zeros(probs.shape)
+    is_finding = np.zeros(probs.shape, dtype=int)
     is_finding[post_orders[0:end_fdr]] = 1
     if len(probs.shape) > 1:
         is_finding = is_finding.reshape(pshape)
@@ -288,10 +288,11 @@ def vector_str(p, decimal_places=2):
     style = '{0:.' + str(decimal_places) + 'f}'
     return '[{0}]'.format(", ".join([style.format(a) for a in p]))
 
-def mean_filter(pvals, edges):
+def mean_filter(pvals, edges, rescale=True):
     '''Given a list of p-values and their neighbors, applies a mean filter
-    that replaces each p_i with p*_i where p*_i = mean(neighbors(p_i)).'''
-    return np.array([np.mean(pvals[edges[i] + [i]]) for i,p in enumerate(pvals)])
+    that replaces each p_i with p*_i where p*_i = mean(neighbors(p_i)).
+    If rescale is true, then the p-values are rescaled to be variance 1.'''
+    return np.array([np.mean(pvals[edges[i] + [i]]) * (np.sqrt(len(edges[i]) + 1) if rescale else 1) for i,p in enumerate(pvals)])
 
 def median_filter(pvals, edges):
     '''Given a list of p-values and their neighbors, applies a median filter
