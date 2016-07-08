@@ -329,15 +329,15 @@ def local_agg_fdr(pvals, edges, fdr_level, lmbda = 0.1):
     # Returns the indices of all discoveries
     return np.where(p_star < t)[0]
 
-def p_value(z):
-    return 2*(1.0 - st.norm.cdf(np.abs(z)))
+def p_value(z, mu0=0., sigma0=1.):
+    return 2*(1.0 - st.norm.cdf(np.abs((z - mu0) / sigma0)))
 
-def benjamini_hochberg(z, fdr):
+def benjamini_hochberg(z, fdr, mu0=0., sigma0=1.):
     '''Performs Benjamini-Hochberg multiple hypothesis testing on z at the given false discovery rate threshold.'''
     z_shape = z.shape if len(z.shape) > 1 else None
     if z_shape is not None:
         z = z.flatten()
-    p = p_value(z)
+    p = p_value(z, mu0=mu0, sigma0=sigma0)
     p_orders = np.argsort(p)
     discoveries = []
     m = float(len(p_orders))
