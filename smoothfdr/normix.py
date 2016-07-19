@@ -78,7 +78,7 @@ def predictive_recursion_fdr(z, sweeporder, grid_x, theta_guess, mu0 = 0.,
 			'y_mix': y_mix,
 			'y_signal': y_signal}
 
-def empirical_null(z, nmids=150, pct=-0.01, pct0=0.25, df=4):
+def empirical_null(z, nmids=150, pct=-0.01, pct0=0.25, df=4, verbose=0):
     '''Estimate f(z) and f_0(z) using a polynomial approximation to Efron (2004)'s method.'''
     N = len(z)
     med = np.median(z)
@@ -99,8 +99,8 @@ def empirical_null(z, nmids=150, pct=-0.01, pct0=0.25, df=4):
     # Form a polynomial basis and multiply by z-counts
     X = np.array([mids ** i for i in xrange(df+1)]).T
     beta0 = np.zeros(df+1)
-    loglambda_loss = lambda beta, X, y: -((X * y[:,np.newaxis]).dot(beta) - np.exp(X.dot(beta))).sum()
-    results = fmin_bfgs(loglambda_loss, beta0, args=(X, zcounts), disp=True)
+    loglambda_loss = lambda beta, X, y: -((X * y[:,np.newaxis]).dot(beta) - np.exp(X.dot(beta).clip(-20,20))).sum() + 1e-6*np.sqrt((beta ** 2).sum())
+    results = fmin_bfgs(loglambda_loss, beta0, args=(X, zcounts), disp=verbose)
     a = np.linspace(-3,3,1000)
     B = np.array([a ** i for i in xrange(df+1)]).T
     beta_hat = results
