@@ -9,12 +9,19 @@ from collections import deque, namedtuple
 from pygfl.solver import TrailSolver
 from smoothed_fdr import GaussianKnown
 from pygfl.trails import decompose_graph, save_chains
-from pygfl.utils import chains_to_trails, calc_plateaus
-from networkx import Graph, connected_components
+from pygfl.utils import chains_to_trails, calc_plateaus, hypercube_edges
+from networkx import Graph
 from smoothfdr.normix import *
 from smoothfdr.utils import calc_fdr
 
-def smooth_fdr(data, edges, fdr_level, initial_values=None, verbose=0, null_dist=None):
+def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null_dist=None, num_sweeps=10):
+    if edges is None:
+        if verbose:
+            print 'Using default edge set of a grid of same shape as the data: {0}'.format(data.shape)
+        edges = hypercube_edges(data.shape)
+
+    flat_data = data.flatten()
+
     # Decompose the graph into trails
     g = Graph()
     g.add_edges_from(edges)
@@ -23,7 +30,9 @@ def smooth_fdr(data, edges, fdr_level, initial_values=None, verbose=0, null_dist
 
     if null_dist is None:
         # empirical null estimation
-        mu0, sigma0 = empirical_null(data, verbose=max(0,verbose-1))
+        mu0, sigma0 = empirical_null(flat_data, verbose=max(0,verbose-1))
+    elif type(null_dist) is GaussianKnown:
+        mu0, sigma0 = null_dist.mean, null_dist.stdev
     else:
         mu0, sigma0 = null_dist
     null_dist = GaussianKnown(mu0, sigma0)
@@ -32,19 +41,32 @@ def smooth_fdr(data, edges, fdr_level, initial_values=None, verbose=0, null_dist
         print 'Empirical null: {0}'.format(null_dist)
 
     # signal distribution estimation
-    num_sweeps = 10
-    grid_x = np.linspace(min(-20, data.min() - 1), max(data.max() + 1, 20), 220)
-    pr_results = predictive_recursion(data, num_sweeps, grid_x, mu0=mu0, sig0=sigma0)
+    if verbose:
+        print 'Running predictive recursion for {0} sweeps'.format(num_sweeps)
+    grid_x = np.linspace(min(-20, flat_data.min() - 1), max(flat_data.max() + 1, 20), 220)
+    pr_results = predictive_recursion(flat_data, num_sweeps, grid_x, mu0=mu0, sig0=sigma0)
     signal_dist = GridDistribution(pr_results['grid_x'], pr_results['y_signal'])
 
-    solver = TrailSolver()
-    solver.set_data(data, edges, ntrails, trails, breakpoints)
+    if verbose:
+        print 'Smoothing priors via solution path algorithm'
 
-    results = solution_path_smooth_fdr(data, solver, null_dist, signal_dist, verbose=max(0, verbose-1))
+    solver = TrailSolver()
+    solver.set_data(flat_data, edges, ntrails, trails, breakpoints)
+
+    results = solution_path_smooth_fdr(flat_data, solver, null_dist, signal_dist, verbose=max(0, verbose-1))
 
     results['discoveries'] = calc_fdr(results['posteriors'], fdr_level)
     results['null_dist'] = null_dist
     results['signal_dist'] = signal_dist
+
+    # Reshape everything back to the original data shape
+    results['betas'] = results['betas'].reshape(data.shape)
+    results['priors'] = results['priors'].reshape(data.shape)
+    results['posteriors'] = results['posteriors'].reshape(data.shape)
+    results['discoveries'] = results['discoveries'].reshape(data.shape)
+    results['beta_iters'] = np.array([x.reshape(data.shape) for x in results['beta_iters']])
+    results['prior_iters'] = np.array([x.reshape(data.shape) for x in results['prior_iters']])
+    results['posterior_iters'] = np.array([x.reshape(data.shape) for x in results['prior_iters']])
 
     return results
 
@@ -226,7 +248,6 @@ def _m_step(beta, prior_prob, post_prob, _lambda,
                 verbose, initial_values):
     '''
     Alternating Second-order Taylor-series expansion about the current iterate
-    and coordinate descent to optimize Beta.
     '''
     prev_nll = _m_log_likelihood(post_prob, beta)
     delta = converge + 1
