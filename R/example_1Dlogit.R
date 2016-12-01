@@ -14,6 +14,8 @@ w_true = ilogit(beta_true)
 gamma_true = rbinom(n, 1, w_true)
 z = rnorm(n)
 z[gamma_true == 1] = rnorm(sum(gamma_true), 0, 3)
+
+# quick peek
 plot(z, xlab='X', ylab='Z score', pch=19, col=rgb(0.2,0.2,0.2,0.2))
 
 # We know the null and alternative densities
