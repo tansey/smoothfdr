@@ -9,7 +9,7 @@ fdr_level = 0.05
 # and using a 2d grid edge set
 # Note that verbose is a level not a boolean, so you can
 # set verbose=0 for silent, 1 for high-level output, 2+ for more details
-results = smooth_fdr(data, fdr_level, verbose=5)
+results = smooth_fdr(data, fdr_level, verbose=5, missing_val=0)
 
 # results is a dictionary containing all the information shown in
 # the images for the example. let's just plot the empirical Bayes

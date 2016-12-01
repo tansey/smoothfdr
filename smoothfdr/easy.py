@@ -14,13 +14,19 @@ from networkx import Graph
 from smoothfdr.normix import *
 from smoothfdr.utils import calc_fdr
 
-def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null_dist=None, num_sweeps=10):
+def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null_dist=None, num_sweeps=10, missing_val=None):
+    flat_data = data.flatten()
+    nonmissing_flat_data = flat_data
+
     if edges is None:
         if verbose:
             print 'Using default edge set of a grid of same shape as the data: {0}'.format(data.shape)
         edges = hypercube_edges(data.shape)
-
-    flat_data = data.flatten()
+        if missing_val is not None:
+            if verbose:
+                print 'Removing all data points whose data value is {0}'.format(missing_val)
+            edges = [(e1,e2) for (e1,e2) in edges if flat_data[e1] != missing_val and flat_data[e2] != missing_val]
+            nonmissing_flat_data = flat_data[flat_data != missing_val]
 
     # Decompose the graph into trails
     g = Graph()
@@ -30,7 +36,7 @@ def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null
 
     if null_dist is None:
         # empirical null estimation
-        mu0, sigma0 = empirical_null(flat_data, verbose=max(0,verbose-1))
+        mu0, sigma0 = empirical_null(nonmissing_flat_data, verbose=max(0,verbose-1))
     elif type(null_dist) is GaussianKnown:
         mu0, sigma0 = null_dist.mean, null_dist.stdev
     else:
@@ -43,8 +49,8 @@ def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null
     # signal distribution estimation
     if verbose:
         print 'Running predictive recursion for {0} sweeps'.format(num_sweeps)
-    grid_x = np.linspace(min(-20, flat_data.min() - 1), max(flat_data.max() + 1, 20), 220)
-    pr_results = predictive_recursion(flat_data, num_sweeps, grid_x, mu0=mu0, sig0=sigma0)
+    grid_x = np.linspace(min(-20, nonmissing_flat_data.min() - 1), max(nonmissing_flat_data.max() + 1, 20), 220)
+    pr_results = predictive_recursion(nonmissing_flat_data, num_sweeps, grid_x, mu0=mu0, sig0=sigma0)
     signal_dist = GridDistribution(pr_results['grid_x'], pr_results['y_signal'])
 
     if verbose:
