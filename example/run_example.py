@@ -26,4 +26,4 @@ ax[1,0].set_title('Posteriors')
 
 ax[1,1].imshow(results['discoveries'], cmap='gray_r', vmin=0, vmax=1)
 ax[1,1].set_title('Discoveries at FDR={0}'.format(fdr_level))
-plt.show()
+plt.savefig('results.png')

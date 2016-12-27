@@ -72,7 +72,7 @@ def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null
     results['discoveries'] = results['discoveries'].reshape(data.shape)
     results['beta_iters'] = np.array([x.reshape(data.shape) for x in results['beta_iters']])
     results['prior_iters'] = np.array([x.reshape(data.shape) for x in results['prior_iters']])
-    results['posterior_iters'] = np.array([x.reshape(data.shape) for x in results['prior_iters']])
+    results['posterior_iters'] = np.array([x.reshape(data.shape) for x in results['posterior_iters']])
 
     return results
 

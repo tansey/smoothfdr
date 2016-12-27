@@ -23,57 +23,55 @@ Running an example
 
 There are lots of parameters that you can play with if you so choose, but one of the biggest benefit of FDR smoothing is that you don't have to worry about it in most cases.
 
-To run a simple example, we can generate our own synthetic data:
+To run a simple example, we can use the example data in `example/data.csv`. This is a simple 128x128 test dataset with two plateaus of increased prior probability of signal. Running FDR smoothing on this is simple:
 
 ```
-gen2d example/data.csv example/true_weights.csv example/true_signals.csv example/oracle_posteriors.csv example/edges.csv example/trails.csv --signal_dist_name alt1 --plot example/data.png
+import numpy as np
+from smoothfdr.easy import smooth_fdr
+
+data = np.loadtxt('example/data.csv', delimiter=',')
+fdr_level = 0.05
+
+# Runs the FDR smoothing algorithm with the default settings
+# and using a 2d grid edge set
+# Note that verbose is a level not a boolean, so you can
+# set verbose=0 for silent, 1 for high-level output, 2+ for more details
+results = smooth_fdr(data, fdr_level, verbose=5, missing_val=0)
 ```
 
-The above command generates a dataset of 128x128 test sites arranged along a grid, with spatial dependence between adjacent neighbors. The true prior probability of sampling from the null distribution and an example of the realized values is below:
+By default, the `smooth_fdr` function will assume you are working with a multidimensional grid that has the same shape as the `data` array. If your points are connected differently, you need to make `data` a one-dimensional vector and pass in list of `(x1, x2)` pairs via the `edges` parameter. Also, if you are dealing with a grid, but you have some missing data (e.g., an fMRI scan) then you simply pass the value you use to indicate a missing data point to `missing_val`.
 
-### Visualizations of the true priors and raw data
 
-![Visualizations of the true priors and raw data](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/data.png)
+Visualizing of the results
+=============================
 
-Given this dataset, we can now run the FDR smoothing algorithm to try and estimate the true prior regions and improve the power of our hypothesis tests:
+Once you have run the algorithm, you can use the returned dictionary to analyze the results.
+
+![Visualization the results](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/results.png)
 
 ```
-smoothfdr --data_file example/data.csv --no_data_header \
---empirical_null --estimate_signal --solution_path --dual_solver graph \
---save_weights example/sfdr_weights.csv \
---save_posteriors example/sfdr_posteriors.csv \
---save_plateaus example/sfdr_plateaus.csv \
---save_signal example/sfdr_estimated_signal.csv \
---save_discoveries example/sfdr_discoveries.csv \
---plot_path example/solution_path.png \
---verbose 1 \
-graph --trails example/trails.csv
+import matplotlib.pylab as plt
+fig, ax = plt.subplots(2,2)
+ax[0,0].imshow(data, cmap='gray_r')
+ax[0,0].set_title('Raw data')
+
+ax[0,1].imshow(results['priors'], cmap='gray_r', vmin=0, vmax=1)
+ax[0,1].set_title('Smoothed prior')
+
+ax[1,0].imshow(results['posteriors'], cmap='gray_r', vmin=0, vmax=1)
+ax[1,0].set_title('Posteriors')
+
+ax[1,1].imshow(results['discoveries'], cmap='gray_r', vmin=0, vmax=1)
+ax[1,1].set_title('Discoveries at FDR={0}'.format(fdr_level))
+plt.savefig('results.png')
 ```
 
-The first line simply feeds in the data and specifies there is no header line in the data file. The second line specifies the details of the FDR smoothing run-- we want to empirically estimate the null (as opposed to assuming a standard normal), estimate the alternative hypothesis distribution, automatically tune the hyperparameters by evaluating an entire solution path of possible values, and we want to use the fast graph-based fused lasso solver.
+You can also look deeper into the `results` object for all the detailed solution path diagnostic information, if you're curious.
 
-This last part is then specified further in the last line by saying our data is aranged as an arbitrary graph and trails have been created already. Trails were created automatically for us in gen2d; if you want to create your own trails for your specific dataset, you can use the `trails` command-line call from the [pygfl package](https://github.com/tansey/gfl), which is automatically installed as part of the `smoothfdr` package.
+References
+==========
 
-### Solution path diagnostics
-
-![Solution path diagnostics](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/solution_path.png)
-
-### Resulting plateaus detected
-
-![Resulting plateaus detected](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/estimated_priors.png)
-
-For a detailed list of commands, just run `smoothfdr -h`.
-
-## TODO
-
-The package should be fully functional at the moment, however, a few things could be improved:
-
-- The predictive recursion function is currently pretty slow due to being a pure python implementation. That will soon be replaced by a C implementation which will be released as another package and incorporated into this one in a future update.
-
-- The trail creation is a bit awkward and probably should be automated. In practice, it probably isn't a big deal if your trails are super optimal, so just using the default trail decomposition algorithm in `pygfl` should be fine.
-
-- The plotting could be improved. Currently, you have to run using the slower 2d or 3d solver in order to plot some of the results. That all needs to be replaced and in general the commandline interface should be streamlined to just work with generic graphs. This was mainly due historical progress of finding increasingly more efficient solutions to the optimization problem and wanting to be able to benchmark all of them. At this point it seems clear that the trail-based solver is the fastest and most robust, so it should just be the only solver in the package.
-
+**False Discovery Rate Smoothing**. W. Tansey, O. Koyejo, R. A. Poldrack, and J. G. Scott. arXiv:1411.6144, November 2014. 
 
 
 
