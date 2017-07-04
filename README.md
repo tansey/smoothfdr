@@ -73,7 +73,7 @@ You can also look deeper into the `results` object for all the detailed solution
 References
 ----------
 
-**False Discovery Rate Smoothing**. W. Tansey, O. Koyejo, R. A. Poldrack, and J. G. Scott. [arXiv:1411.6144](http://arxiv.org/abs/1411.6144), November 2014.
+**False Discovery Rate Smoothing**. W. Tansey, O. Koyejo, R. A. Poldrack, and J. G. Scott. [arXiv:1411.6144](http://arxiv.org/abs/1411.6144), November 2016 (Version 1 in November 2014).
 
 
 
