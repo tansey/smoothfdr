@@ -26,7 +26,7 @@ There are lots of parameters that you can play with if you so choose, but one of
 
 To run a simple example, we can use the example data in `example/data.csv`. This is a simple 128x128 test dataset with two plateaus of increased prior probability of signal. Running FDR smoothing on this is simple:
 
-```
+```python
 import numpy as np
 from smoothfdr.easy import smooth_fdr
 
@@ -51,7 +51,7 @@ Once you have run the algorithm, you can use the returned dictionary to analyze 
 
 ![Visualization the results](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/results.png)
 
-```
+```python
 import matplotlib.pylab as plt
 fig, ax = plt.subplots(2,2)
 ax[0,0].imshow(data, cmap='gray_r')
