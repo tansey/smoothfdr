@@ -40,8 +40,7 @@ fdr_level = 0.05
 results = smooth_fdr(data, fdr_level, verbose=5, missing_val=0)
 ```
 
-By default, the `s
-mooth_fdr` function will assume you are working with a multidimensional grid that has the same shape as the `data` array. If your points are connected differently, you need to make `data` a one-dimensional vector and pass in list of `(x1, x2)` pairs via the `edges` parameter. Also, if you are dealing with a grid, but you have some missing data (e.g., an fMRI scan) then you simply pass the value you use to indicate a missing data point to `missing_val`.
+By default, the `smooth_fdr` function will assume you are working with a multidimensional grid that has the same shape as the `data` array. If your points are connected differently, you need to make `data` a one-dimensional vector and pass in list of `(x1, x2)` pairs via the `edges` parameter. Also, if you are dealing with a grid, but you have some missing data (e.g., an fMRI scan) then you simply pass the value you use to indicate a missing data point to `missing_val`.
 
 
 Visualizing of the results
