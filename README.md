@@ -1,12 +1,13 @@
 False Discovery Rate Smoothing (smoothfdr)
-------------------------------------------
+==========================================
 
 The `smoothfdr` package provides an empirical-Bayes method for exploiting spatial structure in large multiple-testing problems. FDR smoothing automatically finds spatially localized regions of significant test statistics. It then relaxes the threshold of statistical significance within these regions, and tightens it elsewhere, in a manner that controls the overall false-discovery rate at a given level. This results in increased power and cleaner spatial separation of signals from noise. It tends to detect patterns that are much more biologically plausible than those detected by existing FDR-controlling methods.
 
 For a detailed description of how FDR smoothing works, see the [paper on arXiv](http://arxiv.org/abs/1411.6144).
 
 Installation
-============
+------------
+
 To install the Python version:
 
 ```
@@ -19,13 +20,13 @@ The R source and package will be on CRAN and available publicly soon.
 
 
 Running an example
-==================
+------------------
 
 There are lots of parameters that you can play with if you so choose, but one of the biggest benefit of FDR smoothing is that you don't have to worry about it in most cases.
 
 To run a simple example, we can use the example data in `example/data.csv`. This is a simple 128x128 test dataset with two plateaus of increased prior probability of signal. Running FDR smoothing on this is simple:
 
-```
+```python
 import numpy as np
 from smoothfdr.easy import smooth_fdr
 
@@ -43,13 +44,13 @@ By default, the `smooth_fdr` function will assume you are working with a multidi
 
 
 Visualizing of the results
-=============================
+--------------------------
 
 Once you have run the algorithm, you can use the returned dictionary to analyze the results.
 
 ![Visualization the results](https://raw.githubusercontent.com/tansey/smoothfdr/master/example/results.png)
 
-```
+```python
 import matplotlib.pylab as plt
 fig, ax = plt.subplots(2,2)
 ax[0,0].imshow(data, cmap='gray_r')
@@ -69,9 +70,9 @@ plt.savefig('results.png')
 You can also look deeper into the `results` object for all the detailed solution path diagnostic information, if you're curious.
 
 References
-==========
+----------
 
-**False Discovery Rate Smoothing**. W. Tansey, O. Koyejo, R. A. Poldrack, and J. G. Scott. arXiv:1411.6144, November 2014. 
+**False Discovery Rate Smoothing**. W. Tansey, O. Koyejo, R. A. Poldrack, and J. G. Scott. [arXiv:1411.6144](http://arxiv.org/abs/1411.6144), November 2016 (Version 1 in November 2014).
 
 
 
