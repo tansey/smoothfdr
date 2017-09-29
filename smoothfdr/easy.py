@@ -1,16 +1,16 @@
-import itertools
+# import itertools
+# from functools import partial
+# from scipy.stats import norm
+# from scipy.sparse import csc_matrix, linalg as sla
+# from scipy import sparse
+# from scipy.optimize import minimize, minimize_scalar
+# from collections import deque, namedtuple
 import numpy as np
-from scipy import sparse
-from scipy.stats import norm
-from scipy.optimize import minimize, minimize_scalar
-from scipy.sparse import csc_matrix, linalg as sla
-from functools import partial
-from collections import deque, namedtuple
+from networkx import Graph
 from pygfl.solver import TrailSolver
-from smoothed_fdr import GaussianKnown
 from pygfl.trails import decompose_graph, save_chains
 from pygfl.utils import chains_to_trails, calc_plateaus, hypercube_edges
-from networkx import Graph
+from smoothed_fdr import GaussianKnown
 from smoothfdr.normix import *
 from smoothfdr.utils import calc_fdr
 
