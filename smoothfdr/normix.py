@@ -29,7 +29,7 @@ def trapezoid(x, y):
 
 def generate_sweeps(num_sweeps, num_samples):
 	results = []
-	for sweep in xrange(num_sweeps):
+	for sweep in range(num_sweeps):
 		a = np.arange(num_samples)
 		np.random.shuffle(a)
 		results.extend(a)
@@ -97,18 +97,18 @@ def empirical_null(z, nmids=150, pct=-0.01, pct0=0.25, df=4, verbose=0):
     mids = mids[selected]
 
     # Form a polynomial basis and multiply by z-counts
-    X = np.array([mids ** i for i in xrange(df+1)]).T
+    X = np.array([mids ** i for i in range(df+1)]).T
     beta0 = np.zeros(df+1)
     loglambda_loss = lambda beta, X, y: -((X * y[:,np.newaxis]).dot(beta) - np.exp(X.dot(beta).clip(-20,20))).sum() + 1e-6*np.sqrt((beta ** 2).sum())
     results = fmin_bfgs(loglambda_loss, beta0, args=(X, zcounts), disp=verbose)
     a = np.linspace(-3,3,1000)
-    B = np.array([a ** i for i in xrange(df+1)]).T
+    B = np.array([a ** i for i in range(df+1)]).T
     beta_hat = results
 
     # Back out the mean and variance from the Taylor terms
     x_max = mids[np.argmax(X.dot(beta_hat))]
-    loglambda_deriv1_atmode = np.array([i * beta_hat[i] * x_max**(i-1) for i in xrange(1,df+1)]).sum()
-    loglambda_deriv2_atmode = np.array([i * (i-1) * beta_hat[i] * x_max**(i-2) for i in xrange(2,df+1)]).sum()
+    loglambda_deriv1_atmode = np.array([i * beta_hat[i] * x_max**(i-1) for i in range(1,df+1)]).sum()
+    loglambda_deriv2_atmode = np.array([i * (i-1) * beta_hat[i] * x_max**(i-2) for i in range(2,df+1)]).sum()
     
     # Handle the edge cases that arise with numerical precision issues
     sigma_enull = np.sqrt(-1.0/loglambda_deriv2_atmode) if loglambda_deriv2_atmode < 0 else 1

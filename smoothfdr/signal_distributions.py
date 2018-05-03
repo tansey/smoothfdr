@@ -1,5 +1,4 @@
 import matplotlib
-matplotlib.use('Agg')
 from matplotlib import cm, colors
 import matplotlib.pyplot as plt
 import numpy as np

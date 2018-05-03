@@ -72,7 +72,7 @@ def thresholded_posterior_clusters(posteriors_filename, data, lookup, edges, fdr
         m = posteriors[list(p)].mean()
         if 1-m > fdr:
             continue
-        print 'Cluster size: {0}\tmean:{1}'.format(len(p), m)
+        print('Cluster size: {0}\tmean:{1}'.format(len(p), m))
         for i in p:
             data[lookup[i]] = m
 
@@ -94,17 +94,17 @@ if __name__ == '__main__':
     expdir = args.indir + ('' if args.indir.endswith('/') else '/')
 
     if args.verbose:
-        print 'Loading raw data from {0}'.format(expdir+'data.nii.gz')
+        print('Loading raw data from {0}'.format(expdir+'data.nii.gz'))
 
     data, coords = load_nii(expdir+'data.nii.gz')
 
     if args.verbose:
-        print 'Loading edges from {0}'.format(expdir+'edges.csv')
+        print('Loading edges from {0}'.format(expdir+'edges.csv'))
 
     edges = load_edges(expdir+'edges.csv')
 
     if args.verbose:
-        print 'Loading shape and lookup data from {0}'.format(expdir+'lookup.csv')
+        print('Loading shape and lookup data from {0}'.format(expdir+'lookup.csv'))
 
     shape, lookup = load_shape_lookup(expdir+'lookup.csv')
     smoothdata = np.zeros(shape)
@@ -112,23 +112,23 @@ if __name__ == '__main__':
     smoothdiscs = np.zeros(shape)
 
     if args.verbose:
-        print 'Original data shape: {0} Smoothed data shape: {1} (should be the same)'.format(data.shape, smoothdata.shape)
+        print('Original data shape: {0} Smoothed data shape: {1} (should be the same)'.format(data.shape, smoothdata.shape))
 
 
     if args.verbose:
-        print 'Loading smoothed weights from {0}'.format(expdir + 'weights.csv')
+        print('Loading smoothed weights from {0}'.format(expdir + 'weights.csv'))
 
     load_weights(expdir + 'weights.csv', smoothdata, lookup)
 
     if args.verbose:
-        print 'Loading posteriors from {0}'.format(expdir + 'posteriors.csv')
+        print('Loading posteriors from {0}'.format(expdir + 'posteriors.csv'))
 
     load_weights(expdir + 'posteriors.csv', smoothposts, lookup)
 
     if args.verbose:
-        print 'Filtering down to a local FDR threshold of {0}'.format(args.fdr_level)
+        print('Filtering down to a local FDR threshold of {0}'.format(args.fdr_level))
 
-    print 'smoothdiscs size: {0}'.format(smoothdiscs.shape)
+    print('smoothdiscs size: {0}'.format(smoothdiscs.shape))
     thresholded_posterior_clusters(expdir + 'posteriors.csv', smoothdiscs, lookup, edges, args.fdr_level, args.mincluster)
 
 
@@ -143,7 +143,7 @@ if __name__ == '__main__':
     # plot_plateau_sizes_vs_posteriors(plateaus, np.loadtxt(expdir+'posteriors.csv', delimiter=','), expdir + 'img/plateau_sizes_vs_posteriors.pdf')
 
     if args.verbose:
-        print 'Saving .nii.gz versions'
+        print('Saving .nii.gz versions')
 
     save_nii(expdir + 'weights.nii.gz', smoothdata, coords)
     save_nii(expdir + 'posteriors.nii.gz', smoothposts, coords)
@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
     if args.plot:
         if args.verbose:
-            print 'Plotting to {0}'.format(expdir + 'img/')
+            print('Plotting to {0}'.format(expdir + 'img/'))
 
         data[np.where(data == args.missingval)] = np.nan
         smoothdata[np.where(data == args.missingval)] = np.nan
@@ -169,7 +169,7 @@ if __name__ == '__main__':
             os.makedirs(expdir + 'img/')
 
 
-        for i in xrange(3):
+        for i in range(3):
             # Create the axis directory if it doesn't already exist
             if not os.path.exists(expdir + 'img/' + str(i)):
                 os.makedirs(expdir + 'img/' + str(i))

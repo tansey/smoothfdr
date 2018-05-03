@@ -48,28 +48,28 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.verbose:
-        print 'Loading data from {0}'.format(args.infile)
+        print('Loading data from {0}'.format(args.infile))
 
     data = load_nii(args.infile)
 
     if args.verbose:
-        print 'Data shape: {0}'.format(data.shape)
+        print('Data shape: {0}'.format(data.shape))
 
     raw_edges = cube_edges(data, missing_val=args.missingval)
 
     if args.verbose:
-        print 'Edges: {0}'.format(len(raw_edges))
+        print('Edges: {0}'.format(len(raw_edges)))
 
     betas, edges, lookup = cube_to_vector(data, raw_edges)
 
     if args.verbose:
-        print 'Vertices: {0}'.format(len(betas))
+        print('Vertices: {0}'.format(len(betas)))
 
     trails = cube_trails_missing(data, missing_val=args.missingval)
     trails = cube_trails_to_vector_trails(trails, lookup)
     
     if args.verbose:
-        print 'Trails: {0}'.format(len(trails))
+        print('Trails: {0}'.format(len(trails)))
 
     outdir = args.outdir + ('' if args.outdir.endswith('/') else '/')
 
@@ -77,22 +77,22 @@ if __name__ == '__main__':
         os.makedirs(outdir)
 
     if args.verbose:
-        print 'Saving betas to {0}'.format(outdir+'betas.csv')
+        print('Saving betas to {0}'.format(outdir+'betas.csv'))
     np.savetxt(outdir+'betas.csv', betas, delimiter=',')
 
     if args.verbose:
-        print 'Saving edges to {0}'.format(outdir+'edges.csv')
+        print('Saving edges to {0}'.format(outdir+'edges.csv'))
     with open(outdir+'edges.csv', 'wb') as f:
         writer = csv.writer(f)
         writer.writerows(edges)
 
     if args.verbose:
-        print 'Saving trails to {0}'.format(outdir+'trails.csv')
+        print('Saving trails to {0}'.format(outdir+'trails.csv'))
     save_trails(outdir+'trails.csv', trails)
 
     if args.verbose:
-        print 'Saving map from vector index -> (x,y,z) to {0}'.format(outdir+'lookup.csv')
-        print 'NOTE: the first line will be the dimensions of the original data.'
+        print('Saving map from vector index -> (x,y,z) to {0}'.format(outdir+'lookup.csv'))
+        print('NOTE: the first line will be the dimensions of the original data.')
     with open(outdir+'lookup.csv', 'wb') as f:
         writer = csv.writer(f)
         writer.writerow(data.shape)

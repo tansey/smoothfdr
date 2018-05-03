@@ -17,7 +17,7 @@ class ProxyDistribution:
     def sample(self, count=1):
         if count == 1:
             return self.sample_method()
-        return np.array([self.sample_method() for _ in xrange(count)])
+        return np.array([self.sample_method() for _ in range(count)])
 
     def __repr__(self):
         return self.name
@@ -45,8 +45,8 @@ def generate_data(null_mean, null_stdev, signal_dist, signal_weights):
 
 def calc_fdr(probs, fdr_level):
     '''Calculates the detected signals at a specific false discovery rate given the posterior probabilities of each point.'''
+    pshape = probs.shape
     if len(probs.shape) > 1:
-        pshape = probs.shape
         probs = probs.flatten()
     post_orders = np.argsort(probs)[::-1]
     avg_fdr = 0.0
@@ -61,7 +61,7 @@ def calc_fdr(probs, fdr_level):
 
     is_finding = np.zeros(probs.shape, dtype=int)
     is_finding[post_orders[0:end_fdr]] = 1
-    if len(probs.shape) > 1:
+    if len(pshape) > 1:
         is_finding = is_finding.reshape(pshape)
     return is_finding
 
@@ -84,8 +84,8 @@ def sparse_2d_penalty_matrix(data_shape, nonrect_to_data=None):
     col = []
 
     if nonrect_to_data is not None:
-        for j in xrange(data_shape[1]):
-            for i in xrange(data_shape[0]-1):            
+        for j in range(data_shape[1]):
+            for i in range(data_shape[0]-1):            
                 idx1 = nonrect_to_data[i,j]
                 idx2 = nonrect_to_data[i+1,j]
                 if idx1 < 0 or idx2 < 0:
@@ -99,8 +99,8 @@ def sparse_2d_penalty_matrix(data_shape, nonrect_to_data=None):
                 data.append(1.)
 
                 row_counter += 1
-        for j in xrange(data_shape[1]-1):
-            for i in xrange(data_shape[0]):
+        for j in range(data_shape[1]-1):
+            for i in range(data_shape[0]):
                 idx1 = nonrect_to_data[i,j]
                 idx2 = nonrect_to_data[i,j+1]
                 if idx1 < 0 or idx2 < 0:
@@ -115,8 +115,8 @@ def sparse_2d_penalty_matrix(data_shape, nonrect_to_data=None):
 
                 row_counter += 1
     else:
-        for j in xrange(data_shape[1]):
-            for i in xrange(data_shape[0] - 1):
+        for j in range(data_shape[1]):
+            for i in range(data_shape[0] - 1):
                 idx1 = i+j*data_shape[0]
                 idx2 = i+j*data_shape[0]+1
 
@@ -131,8 +131,8 @@ def sparse_2d_penalty_matrix(data_shape, nonrect_to_data=None):
                 row_counter += 1
 
         col_counter = 0
-        for i in xrange(data_shape[0]):
-            for j in xrange(data_shape[1] - 1):
+        for i in range(data_shape[0]):
+            for j in range(data_shape[1] - 1):
                 idx1 = col_counter
                 idx2 = col_counter+data_shape[0]
 
@@ -153,22 +153,22 @@ def sparse_2d_penalty_matrix(data_shape, nonrect_to_data=None):
     
 def sparse_1d_penalty_matrix(data_len):
     penalties = np.eye(data_len, dtype=float)[0:-1] * -1
-    for i in xrange(len(penalties)):
+    for i in range(len(penalties)):
         penalties[i,i+1] = 1
     return csc_matrix(penalties)
 
 def cube_trails(xmax, ymax, zmax):
     '''Produces a list of trails following a simple row/col/aisle split strategy for a cube.'''
     trails = []
-    for x in xrange(xmax):
-        for y in xrange(ymax):
-            trails.append([x * ymax * zmax + y * zmax + z for z in xrange(zmax)])
-    for y in xrange(ymax):
-        for z in xrange(zmax):
-            trails.append([x * ymax * zmax + y * zmax + z for x in xrange(xmax)])
-    for z in xrange(zmax):
-        for x in xrange(xmax):
-            trails.append([x * ymax * zmax + y * zmax + z for y in xrange(ymax)])
+    for x in range(xmax):
+        for y in range(ymax):
+            trails.append([x * ymax * zmax + y * zmax + z for z in range(zmax)])
+    for y in range(ymax):
+        for z in range(zmax):
+            trails.append([x * ymax * zmax + y * zmax + z for x in range(xmax)])
+    for z in range(zmax):
+        for x in range(xmax):
+            trails.append([x * ymax * zmax + y * zmax + z for y in range(ymax)])
     return trails
 
 def val_present(data, x, missing_val):
@@ -180,20 +180,20 @@ def cube_edges(data, missing_val=None):
     missing and no edges will be connected to them.'''
     edges = []
     xmax, ymax, zmax = data.shape
-    for y in xrange(ymax):
-        for z in xrange(zmax):
+    for y in range(ymax):
+        for z in range(zmax):
             edges.extend([((x1, y, z), (x2, y, z)) 
-                            for x1, x2 in zip(xrange(data.shape[0]-1), xrange(1,data.shape[0]))
+                            for x1, x2 in zip(range(data.shape[0]-1), range(1,data.shape[0]))
                             if missing_val is None or (data[x1,y,z] != missing_val and data[x2,y,z] != missing_val)])
-    for x in xrange(xmax):
-        for z in xrange(zmax):
+    for x in range(xmax):
+        for z in range(zmax):
             edges.extend([((x, y1, z), (x, y2, z))
-                            for y1, y2 in zip(xrange(data.shape[1]-1), xrange(1,data.shape[1]))
+                            for y1, y2 in zip(range(data.shape[1]-1), range(1,data.shape[1]))
                             if missing_val is None or (data[x,y1,z] != missing_val and data[x,y2,z] != missing_val)])
-    for x in xrange(xmax):
-        for y in xrange(ymax):
+    for x in range(xmax):
+        for y in range(ymax):
             edges.extend([((x, y, z1), (x, y, z2)) 
-                            for z1, z2 in zip(xrange(data.shape[2]-1), xrange(1,data.shape[2]))
+                            for z1, z2 in zip(range(data.shape[2]-1), range(1,data.shape[2]))
                             if missing_val is None or (data[x,y,z1] != missing_val and data[x,y,z2] != missing_val)])
     return edges
 
@@ -212,30 +212,30 @@ def cube_trails_missing(data, missing_val=None):
     '''Generates row/col/aisle trails for a cube when there may be missing data.'''
     trails = []
     xmax, ymax, zmax = data.shape
-    for y in xrange(ymax):
-        for z in xrange(zmax):
+    for y in range(ymax):
+        for z in range(zmax):
             cur_trail = []
-            for x1, x2 in zip(xrange(data.shape[0]-1), xrange(1,data.shape[0])):
+            for x1, x2 in zip(range(data.shape[0]-1), range(1,data.shape[0])):
                 v1 = (x1,y,z)
                 v2 = (x2,y,z)
                 cur_trail = cube_trails_missing_helper(data, trails, cur_trail, v1, v2, missing_val)
             if len(cur_trail) > 1:
                 trails.append(cur_trail)
                 
-    for x in xrange(xmax):
-        for z in xrange(zmax):
+    for x in range(xmax):
+        for z in range(zmax):
             cur_trail = []
-            for y1, y2 in zip(xrange(data.shape[1]-1), xrange(1,data.shape[1])):
+            for y1, y2 in zip(range(data.shape[1]-1), range(1,data.shape[1])):
                 v1 = (x,y1,z)
                 v2 = (x,y2,z)
                 cur_trail = cube_trails_missing_helper(data, trails, cur_trail, v1, v2, missing_val)
             if len(cur_trail) > 1:
                 trails.append(cur_trail)
 
-    for x in xrange(xmax):
-        for y in xrange(ymax):
+    for x in range(xmax):
+        for y in range(ymax):
             cur_trail = []
-            for z1, z2 in zip(xrange(data.shape[2]-1), xrange(1,data.shape[2])):
+            for z1, z2 in zip(range(data.shape[2]-1), range(1,data.shape[2])):
                 v1 = (x, y, z1)
                 v2 = (x, y, z2)
                 cur_trail = cube_trails_missing_helper(data, trails, cur_trail, v1, v2, missing_val)
@@ -305,7 +305,7 @@ def _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tm
         return (tmax, tmax_fdr) if tmax_fdr <= fdr_level else (tmin, tmin_fdr)
     tmid = (tmax + tmin) / 2.
     tmid_fdr = wstar_lambda * ghat(p_star, tmid) / (max(1,(p_star < tmid).sum()) * (1-ghat_lambda))
-    print 't: [{0}, {1}, {2}] => fdr: [{3}, {4}, {5}]'.format(tmin, tmid, tmax, tmin_fdr, tmid_fdr, tmax_fdr)
+    print('t: [{0}, {1}, {2}] => fdr: [{3}, {4}, {5}]'.format(tmin, tmid, tmax, tmin_fdr, tmid_fdr, tmax_fdr))
     if tmid_fdr <= fdr_level:
         return _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tmid, tmax, tmid_fdr, tmax_fdr)
     return _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tmin, tmid, tmin_fdr, tmid_fdr)
@@ -325,7 +325,7 @@ def local_agg_fdr(pvals, edges, fdr_level, lmbda = 0.1):
     tmin_fdr = wstar_lambda * ghat(p_star, tmin) / (max(1,(p_star < tmin).sum()) * (1-ghat_lambda))
     tmax_fdr = wstar_lambda * ghat(p_star, tmax) / (max(1,(p_star < tmax).sum()) * (1-ghat_lambda))
     t, tfdr = _local_agg_fdr_helper(fdr_level, p_star, ghat, ghat_lambda, wstar_lambda, tmin, tmax, tmin_fdr, tmax_fdr)
-    print 't: {0} tfdr: {1}'.format(t, tfdr)
+    print('t: {0} tfdr: {1}'.format(t, tfdr))
     # Returns the indices of all discoveries
     return np.where(p_star < t)[0]
 

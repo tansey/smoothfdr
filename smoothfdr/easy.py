@@ -7,24 +7,24 @@ from scipy.sparse import csc_matrix, linalg as sla
 from functools import partial
 from collections import deque, namedtuple
 from pygfl.solver import TrailSolver
-from smoothed_fdr import GaussianKnown
+from smoothfdr.smoothed_fdr import GaussianKnown
 from pygfl.trails import decompose_graph, save_chains
 from pygfl.utils import chains_to_trails, calc_plateaus, hypercube_edges
 from networkx import Graph
 from smoothfdr.normix import *
 from smoothfdr.utils import calc_fdr
 
-def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null_dist=None, num_sweeps=10, missing_val=None):
+def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null_dist=None, signal_dist=None, num_sweeps=10, missing_val=None):
     flat_data = data.flatten()
     nonmissing_flat_data = flat_data
 
     if edges is None:
         if verbose:
-            print 'Using default edge set of a grid of same shape as the data: {0}'.format(data.shape)
+            print('Using default edge set of a grid of same shape as the data: {0}'.format(data.shape))
         edges = hypercube_edges(data.shape)
         if missing_val is not None:
             if verbose:
-                print 'Removing all data points whose data value is {0}'.format(missing_val)
+                print('Removing all data points whose data value is {0}'.format(missing_val))
             edges = [(e1,e2) for (e1,e2) in edges if flat_data[e1] != missing_val and flat_data[e2] != missing_val]
             nonmissing_flat_data = flat_data[flat_data != missing_val]
 
@@ -37,24 +37,70 @@ def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null
     if null_dist is None:
         # empirical null estimation
         mu0, sigma0 = empirical_null(nonmissing_flat_data, verbose=max(0,verbose-1))
-    elif type(null_dist) is GaussianKnown:
+    elif isinstance(null_dist,GaussianKnown):
         mu0, sigma0 = null_dist.mean, null_dist.stdev
     else:
         mu0, sigma0 = null_dist
     null_dist = GaussianKnown(mu0, sigma0)
 
     if verbose:
-        print 'Empirical null: {0}'.format(null_dist)
+        print('Empirical null: {0}'.format(null_dist))
 
     # signal distribution estimation
     if verbose:
-        print 'Running predictive recursion for {0} sweeps'.format(num_sweeps)
-    grid_x = np.linspace(min(-20, nonmissing_flat_data.min() - 1), max(nonmissing_flat_data.max() + 1, 20), 220)
-    pr_results = predictive_recursion(nonmissing_flat_data, num_sweeps, grid_x, mu0=mu0, sig0=sigma0)
-    signal_dist = GridDistribution(pr_results['grid_x'], pr_results['y_signal'])
+        print('Running predictive recursion for {0} sweeps'.format(num_sweeps))
+    if signal_dist is None:
+        grid_x = np.linspace(min(-20, nonmissing_flat_data.min() - 1), max(nonmissing_flat_data.max() + 1, 20), 220)
+        pr_results = predictive_recursion(nonmissing_flat_data, num_sweeps, grid_x, mu0=mu0, sig0=sigma0)
+        signal_dist = GridDistribution(pr_results['grid_x'], pr_results['y_signal'])
 
     if verbose:
-        print 'Smoothing priors via solution path algorithm'
+        print('Smoothing priors via solution path algorithm')
+
+    solver = TrailSolver()
+    solver.set_data(flat_data, edges, ntrails, trails, breakpoints)
+
+    results = solution_path_smooth_fdr(flat_data, solver, null_dist, signal_dist, verbose=max(0, verbose-1))
+
+    results['discoveries'] = calc_fdr(results['posteriors'], fdr_level)
+    results['null_dist'] = null_dist
+    results['signal_dist'] = signal_dist
+
+    # Reshape everything back to the original data shape
+    results['betas'] = results['betas'].reshape(data.shape)
+    results['priors'] = results['priors'].reshape(data.shape)
+    results['posteriors'] = results['posteriors'].reshape(data.shape)
+    results['discoveries'] = results['discoveries'].reshape(data.shape)
+    results['beta_iters'] = np.array([x.reshape(data.shape) for x in results['beta_iters']])
+    results['prior_iters'] = np.array([x.reshape(data.shape) for x in results['prior_iters']])
+    results['posterior_iters'] = np.array([x.reshape(data.shape) for x in results['posterior_iters']])
+
+    return results
+
+def smooth_fdr_known_dists(data, fdr_level, null_dist, signal_dist, edges=None, initial_values=None, verbose=0, missing_val=None):
+    '''FDR smoothing where the null and alternative distributions are known
+    (and not necessarily Gaussian). Both must define the function pdf.'''
+    flat_data = data.flatten()
+    nonmissing_flat_data = flat_data
+
+    if edges is None:
+        if verbose:
+            print('Using default edge set of a grid of same shape as the data: {0}'.format(data.shape))
+        edges = hypercube_edges(data.shape)
+        if missing_val is not None:
+            if verbose:
+                print('Removing all data points whose data value is {0}'.format(missing_val))
+            edges = [(e1,e2) for (e1,e2) in edges if flat_data[e1] != missing_val and flat_data[e2] != missing_val]
+            nonmissing_flat_data = flat_data[flat_data != missing_val]
+
+    # Decompose the graph into trails
+    g = Graph()
+    g.add_edges_from(edges)
+    chains = decompose_graph(g, heuristic='greedy')
+    ntrails, trails, breakpoints, edges = chains_to_trails(chains)
+
+    if verbose:
+        print('Smoothing priors via solution path algorithm')
 
     solver = TrailSolver()
     solver.set_data(flat_data, edges, ntrails, trails, breakpoints)
@@ -93,7 +139,7 @@ def solution_path_smooth_fdr(data, solver, null_dist, signal_dist, min_lambda=0.
         best_plateaus = None
         for i, _lambda in enumerate(lambda_grid):
             if verbose:
-                print '#{0} Lambda = {1}'.format(i, _lambda)
+                print('#{0} Lambda = {1}'.format(i, _lambda))
 
             # Fit to the final values
             results = fixed_penalty_smooth_fdr(data, solver, _lambda, null_dist, signal_dist,
@@ -101,13 +147,13 @@ def solution_path_smooth_fdr(data, solver, null_dist, signal_dist, min_lambda=0.
                                                initial_values=initial_values)
 
             if verbose:
-                print 'Calculating degrees of freedom'
+                print('Calculating degrees of freedom')
 
             plateaus = calc_plateaus(results['beta'], solver.edges)
             dof_trace[i] = len(plateaus)
 
             if verbose:
-                print 'Calculating AIC'
+                print('Calculating AIC')
 
             # Get the negative log-likelihood
             log_likelihood_trace[i] = -_data_negative_log_likelihood(data, results['c'], null_dist, signal_dist)
@@ -135,10 +181,10 @@ def solution_path_smooth_fdr(data, solver, null_dist, signal_dist, min_lambda=0.
             c_trace.append(results['c'])
 
             if verbose:
-                print 'DoF: {0} AIC: {1} AICc: {2} BIC: {3}'.format(dof_trace[i], aic_trace[i], aicc_trace[i], bic_trace[i])
+                print('DoF: {0} AIC: {1} AICc: {2} BIC: {3}'.format(dof_trace[i], aic_trace[i], aicc_trace[i], bic_trace[i]))
 
         if verbose:
-            print 'Best setting (by BIC): lambda={0} [DoF: {1}, AIC: {2}, AICc: {3} BIC: {4}]'.format(lambda_grid[best_idx], dof_trace[best_idx], aic_trace[best_idx], aicc_trace[best_idx], bic_trace[best_idx])
+            print('Best setting (by BIC): lambda={0} [DoF: {1}, AIC: {2}, AICc: {3} BIC: {4}]'.format(lambda_grid[best_idx], dof_trace[best_idx], aic_trace[best_idx], aicc_trace[best_idx], bic_trace[best_idx]))
 
         return {'aic': aic_trace,
                 'aicc': aicc_trace,
@@ -181,16 +227,16 @@ def fixed_penalty_smooth_fdr(data, solver, _lambda, null_dist, signal_dist, init
     
     while delta > converge and cur_step < max_steps:
         if verbose:
-            print 'Step #{0}'.format(cur_step)
+            print('Step #{0}'.format(cur_step))
 
         if verbose:
-            print '\tE-step...'
+            print('\tE-step...')
 
         # Get the likelihood weights vector (E-step)
         post_prob = _e_step(data, prior_prob, null_dist, signal_dist)
 
         if verbose:
-            print '\tM-step...'
+            print('\tM-step...')
 
         # Find beta using an alternating Taylor approximation and convex optimization (M-step)
         beta, initial_values = _m_step(beta, prior_prob, post_prob, _lambda,
@@ -205,7 +251,7 @@ def fixed_penalty_smooth_fdr(data, solver, _lambda, null_dist, signal_dist, init
         delta = np.abs(cur_nll - prev_nll) / (prev_nll + converge)
 
         if verbose:
-            print '\tDelta: {0}'.format(delta)
+            print('\tDelta: {0}'.format(delta))
 
         # Track the step
         w_iters.append(post_prob)
@@ -221,9 +267,9 @@ def fixed_penalty_smooth_fdr(data, solver, _lambda, null_dist, signal_dist, init
 
         # DEBUGGING
         if verbose:
-            print '\tbeta: [{0:.4f}, {1:.4f}]'.format(beta.min(), beta.max())
-            print '\tprior_prob:    [{0:.4f}, {1:.4f}]'.format(prior_prob.min(), prior_prob.max())
-            print '\tpost_prob:    [{0:.4f}, {1:.4f}]'.format(post_prob.min(), post_prob.max())
+            print('\tbeta: [{0:.4f}, {1:.4f}]'.format(beta.min(), beta.max()))
+            print('\tprior_prob:    [{0:.4f}, {1:.4f}]'.format(prior_prob.min(), prior_prob.max()))
+            print('\tpost_prob:    [{0:.4f}, {1:.4f}]'.format(post_prob.min(), post_prob.max()))
             
     w_iters = np.array(w_iters)
     beta_iters = np.array(beta_iters)
@@ -260,8 +306,8 @@ def _m_step(beta, prior_prob, post_prob, _lambda,
     cur_step = 0
     while delta > converge and cur_step < max_steps:
         if verbose:
-            print '\t\tM-Step iteration #{0}'.format(cur_step)
-            print '\t\tTaylor approximation...'
+            print('\t\tM-Step iteration #{0}'.format(cur_step))
+            print('\t\tTaylor approximation...')
 
         # Cache the exponentiated beta
         exp_beta = np.exp(beta)
@@ -291,7 +337,7 @@ def _m_step(beta, prior_prob, post_prob, _lambda,
         delta = np.abs(prev_nll - cur_nll) / (prev_nll + converge)
 
         if verbose:
-            print '\t\tM-step delta: {0}'.format(delta)
+            print('\t\tM-step delta: {0}'.format(delta))
 
         # Increment the step counter
         cur_step += 1

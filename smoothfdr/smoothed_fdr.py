@@ -99,7 +99,7 @@ class SmoothedFdr(object):
                 grid_points[:,:] = np.nan
         for i, _lambda in enumerate(lambda_grid):
             if verbose:
-                print '#{0} Lambda = {1}'.format(i, _lambda)
+                print('#{0} Lambda = {1}'.format(i, _lambda))
 
             # Clear out all the info from the previous run
             self.reset()
@@ -112,7 +112,7 @@ class SmoothedFdr(object):
                            initial_values=initial_values)
 
             if verbose:
-                print 'Calculating degrees of freedom'
+                print('Calculating degrees of freedom')
 
             # Create a grid structure out of the vector of betas
             if grid_map is not None:
@@ -126,7 +126,7 @@ class SmoothedFdr(object):
             #dof_trace[i] = (np.abs(penalties.dot(results['beta'])) >= dof_tolerance).sum() + 1 # Use the naive DoF
 
             if verbose:
-                print 'Calculating AIC'
+                print('Calculating AIC')
 
             # Get the negative log-likelihood
             log_likelihood_trace[i] = -self._data_negative_log_likelihood(flat_data, results['c'])
@@ -155,10 +155,10 @@ class SmoothedFdr(object):
             c_trace.append(results['c'])
 
             if verbose:
-                print 'DoF: {0} AIC: {1} AICc: {2} BIC: {3}'.format(dof_trace[i], aic_trace[i], aicc_trace[i], bic_trace[i])
+                print('DoF: {0} AIC: {1} AICc: {2} BIC: {3}'.format(dof_trace[i], aic_trace[i], aicc_trace[i], bic_trace[i]))
 
         if verbose:
-            print 'Best setting (by BIC): lambda={0} [DoF: {1}, AIC: {2}, AICc: {3} BIC: {4}]'.format(lambda_grid[best_idx], dof_trace[best_idx], aic_trace[best_idx], aicc_trace[best_idx], bic_trace[best_idx])
+            print('Best setting (by BIC): lambda={0} [DoF: {1}, AIC: {2}, AICc: {3} BIC: {4}]'.format(lambda_grid[best_idx], dof_trace[best_idx], aic_trace[best_idx], aicc_trace[best_idx], bic_trace[best_idx]))
 
         return {'aic': aic_trace,
                 'aicc': aicc_trace,
@@ -194,16 +194,16 @@ class SmoothedFdr(object):
         
         while delta > converge and cur_step < max_steps:
             if verbose:
-                print 'Step #{0}'.format(cur_step)
+                print('Step #{0}'.format(cur_step))
 
             if verbose:
-                print '\tE-step...'
+                print('\tE-step...')
 
             # Get the likelihood weights vector (E-step)
             post_prob = self._e_step(data, prior_prob)
 
             if verbose:
-                print '\tM-step...'
+                print('\tM-step...')
 
             # Find beta using an alternating Taylor approximation and convex optimization (M-step)
             beta, u = self._m_step(beta, prior_prob, post_prob, penalties, _lambda,
@@ -227,7 +227,7 @@ class SmoothedFdr(object):
             delta = np.abs(cur_nll - prev_nll) / (prev_nll + converge)
 
             if verbose:
-                print '\tDelta: {0}'.format(delta)
+                print('\tDelta: {0}'.format(delta))
 
             # Track the step
             self.add_step(post_prob, beta, prior_prob, delta)
@@ -240,11 +240,11 @@ class SmoothedFdr(object):
 
             # DEBUGGING
             if verbose:
-                print '\tbeta: [{0:.4f}, {1:.4f}]'.format(beta.min(), beta.max())
-                print '\tprior_prob:    [{0:.4f}, {1:.4f}]'.format(prior_prob.min(), prior_prob.max())
-                print '\tpost_prob:    [{0:.4f}, {1:.4f}]'.format(post_prob.min(), post_prob.max())
+                print('\tbeta: [{0:.4f}, {1:.4f}]'.format(beta.min(), beta.max()))
+                print('\tprior_prob:    [{0:.4f}, {1:.4f}]'.format(prior_prob.min(), prior_prob.max()))
+                print('\tpost_prob:    [{0:.4f}, {1:.4f}]'.format(post_prob.min(), post_prob.max()))
                 if dual_solver != 'graph':
-                    print '\tdegrees of freedom: {0}'.format((np.abs(penalties.dot(beta)) >= 1e-4).sum())
+                    print('\tdegrees of freedom: {0}'.format((np.abs(penalties.dot(beta)) >= 1e-4).sum()))
 
         # Return the results of the run
         return {'beta': beta, 'u': u, 'w': post_prob, 'c': prior_prob}
@@ -277,8 +277,8 @@ class SmoothedFdr(object):
         cur_step = 0
         while delta > converge and cur_step < max_steps:
             if verbose > 1:
-                print '\t\tM-Step iteration #{0}'.format(cur_step)
-                print '\t\tTaylor approximation...'
+                print('\t\tM-Step iteration #{0}'.format(cur_step))
+                print('\t\tTaylor approximation...')
 
             # Cache the exponentiated beta
             exp_beta = np.exp(beta)
@@ -289,14 +289,14 @@ class SmoothedFdr(object):
                 weights = 0.5 * exp_beta / (1 + exp_beta)**2
                 y = (1+exp_beta)**2 * post_prob / exp_beta + beta - (1 + exp_beta)
                 if verbose > 1:
-                    print '\t\tForming dual...'
+                    print('\t\tForming dual...')
                 x = np.sqrt(weights) * y
                 A = (1. / np.sqrt(weights))[:,np.newaxis] * penalties.T
             else:
                 weights = (prior_prob * (1 - prior_prob))
                 y = beta - (prior_prob - post_prob) / weights
-                print weights
-                print y
+                print(weights)
+                print(y)
 
             if dual_solver == 'cd':
                 # Solve the dual via coordinate descent
@@ -335,7 +335,7 @@ class SmoothedFdr(object):
             delta = np.abs(prev_nll - cur_nll) / (prev_nll + converge)
 
             if verbose > 1:
-                print '\t\tM-step delta: {0}'.format(delta)
+                print('\t\tM-step delta: {0}'.format(delta))
 
             # Increment the step counter
             cur_step += 1
@@ -352,7 +352,7 @@ class SmoothedFdr(object):
     def _graph_fused_lasso(self, y, weights, _lambda, ntrails, trails, breakpoints, edges, converge, max_steps, verbose, alpha, inflate, initial_values=None):
         '''Solve for u using a super fast graph fused lasso library that has an optimized ADMM routine.'''
         if verbose:
-            print '\t\tSolving via Graph Fused Lasso'
+            print('\t\tSolving via Graph Fused Lasso')
         # if initial_values is None:
         #     beta = np.zeros(y.shape, dtype='double')
         #     z = np.zeros(breakpoints[-1], dtype='double')
@@ -380,7 +380,7 @@ class SmoothedFdr(object):
     def _u_admm_lucache(self, y, weights, _lambda, D, converge_threshold, max_steps, verbose, alpha=1.8, initial_values=None, inflate=2., adaptive=False):
         '''Solve for u using alternating direction method of multipliers with a cached LU decomposition.'''
         if verbose:
-            print '\t\tSolving u via Alternating Direction Method of Multipliers'
+            print('\t\tSolving u via Alternating Direction Method of Multipliers')
 
         n = len(y)
         m = D.shape[0]
@@ -460,7 +460,7 @@ class SmoothedFdr(object):
             cur_step += 1
 
             if verbose and cur_step % 100 == 0:
-                print '\t\t\tStep #{0}: dual_resnorm: {1:.6f} primal_resnorm: {2:.6f}'.format(cur_step, dual_resnorm, primal_resnorm)
+                print('\t\t\tStep #{0}: dual_resnorm: {1:.6f} primal_resnorm: {2:.6f}'.format(cur_step, dual_resnorm, primal_resnorm))
 
         return {'x': x, 'r': r, 'z': z, 's': s, 'u_dual': u_dual, 't_dual': t_dual,
                 'primal_trace': primal_trace, 'dual_trace': dual_trace, 'steps': cur_step,
@@ -469,7 +469,7 @@ class SmoothedFdr(object):
     def _u_admm(self, y, weights, _lambda, D, converge_threshold, max_steps, verbose, alpha=1.0, initial_values=None):
         '''Solve for u using alternating direction method of multipliers.'''
         if verbose:
-            print '\t\tSolving u via Alternating Direction Method of Multipliers'
+            print('\t\tSolving u via Alternating Direction Method of Multipliers')
 
         n = len(y)
         m = D.shape[0]
@@ -533,7 +533,7 @@ class SmoothedFdr(object):
             cur_step += 1
 
             if verbose and cur_step % 100 == 0:
-                print '\t\t\tStep #{0}: dual_resnorm: {1:.6f} primal_resnorm: {2:.6f}'.format(cur_step, dual_resnorm, primal_resnorm)
+                print('\t\t\tStep #{0}: dual_resnorm: {1:.6f} primal_resnorm: {2:.6f}'.format(cur_step, dual_resnorm, primal_resnorm))
 
         dof = np.sum(Dx > converge_threshold) + 1.
         AIC = np.sum((y - x)**2) + 2 * dof
@@ -543,7 +543,7 @@ class SmoothedFdr(object):
     def _u_admm_1dfusedlasso(self, y, W, _lambda, converge_threshold, max_steps, verbose, alpha=1.0, initial_values=None):
         '''Solve for u using alternating direction method of multipliers. Note that this method only works for the 1-D fused lasso case.'''
         if verbose:
-            print '\t\tSolving u via Alternating Direction Method of Multipliers (1-D fused lasso)'
+            print('\t\tSolving u via Alternating Direction Method of Multipliers (1-D fused lasso)')
 
         n = len(y)
         m = n - 1
@@ -604,7 +604,7 @@ class SmoothedFdr(object):
             cur_step += 1
 
             if verbose and cur_step % 100 == 0:
-                print '\t\t\tStep #{0}: dual_resnorm: {1:.6f} primal_resnorm: {2:.6f}'.format(cur_step, dual_resnorm, primal_resnorm)
+                print('\t\t\tStep #{0}: dual_resnorm: {1:.6f} primal_resnorm: {2:.6f}'.format(cur_step, dual_resnorm, primal_resnorm))
 
         dof = np.sum(Dx > converge_threshold) + 1.
         AIC = np.sum((y - x)**2) + 2 * dof
@@ -615,7 +615,7 @@ class SmoothedFdr(object):
     def _u_coord_descent(self, x, A, _lambda, converge, max_steps, verbose, u0=None):
         '''Solve for u using coordinate descent.'''
         if verbose:
-            print '\t\tSolving u via Coordinate Descent'
+            print('\t\tSolving u via Coordinate Descent')
         
         u = u0 if u0 is not None else np.zeros(A.shape[1])
 
@@ -626,7 +626,7 @@ class SmoothedFdr(object):
         cur_step = 0
         while delta > converge and cur_step < max_steps:
             # Update each coordinate one at a time.
-            for coord in xrange(len(u)):
+            for coord in range(len(u)):
                 prev_u = u[coord]
                 next_u = prev_u + A.T[coord].dot(r) / l2_norm_A[coord]
                 u[coord] = min(_lambda, max(-_lambda, next_u))
@@ -637,7 +637,7 @@ class SmoothedFdr(object):
             delta = np.abs(prev_objective - cur_objective) / (prev_objective + converge)
 
             if verbose and cur_step % 100 == 0:
-                print '\t\t\tStep #{0}: Objective: {1:.6f} CD Delta: {2:.6f}'.format(cur_step, cur_objective, delta)
+                print('\t\t\tStep #{0}: Objective: {1:.6f} CD Delta: {2:.6f}'.format(cur_step, cur_objective, delta))
 
             # Increment the step counter and update the previous objective value
             cur_step += 1
@@ -648,7 +648,7 @@ class SmoothedFdr(object):
     def _u_slsqp(self, x, A, _lambda, verbose, u0=None):
         '''Solve for u using sequential least squares.'''
         if verbose:
-            print '\t\tSolving u via Sequential Least Squares'
+            print('\t\tSolving u via Sequential Least Squares')
 
         if u0 is None:
             u0 = np.zeros(A.shape[1])
@@ -664,17 +664,17 @@ class SmoothedFdr(object):
                            options={'disp': False, 'maxiter': 1000})
 
         if verbose:
-            print '\t\t\t{0}'.format(results.message)
-            print '\t\t\tFunction evaluations: {0}'.format(results.nfev)
-            print '\t\t\tGradient evaluations: {0}'.format(results.njev)
-            print '\t\t\tu: [{0}, {1}]'.format(results.x.min(), results.x.max())
+            print('\t\t\t{0}'.format(results.message))
+            print('\t\t\tFunction evaluations: {0}'.format(results.nfev))
+            print('\t\t\tGradient evaluations: {0}'.format(results.njev))
+            print('\t\t\tu: [{0}, {1}]'.format(results.x.min(), results.x.max()))
 
         return results.x
 
     def _u_lbfgsb(self, x, A, _lambda, verbose, u0=None):
         '''Solve for u using L-BFGS-B.'''
         if verbose:
-            print '\t\tSolving u via L-BFGS-B'
+            print('\t\tSolving u via L-BFGS-B')
 
         if u0 is None:
             u0 = np.zeros(A.shape[1])
@@ -692,7 +692,7 @@ class SmoothedFdr(object):
         weights = np.zeros(data.shape)
         for i,(level,p) in enumerate(plateaus):
             if verbose:
-                print '\tPlateau #{0}'.format(i+1)
+                print('\tPlateau #{0}'.format(i+1))
             
             # Get the subset of grid points for this plateau
             if grid_map is not None:
@@ -754,21 +754,21 @@ def ilogit(x):
 
 def calc_plateaus(beta, rel_tol=1e-4, edges=None, verbose=0):
     '''Calculate the plateaus (degrees of freedom) of a 1d or 2d grid of beta values in linear time.'''
-    to_check = deque(itertools.product(*[range(x) for x in beta.shape])) if edges is None else deque(xrange(len(beta)))
+    to_check = deque(itertools.product(*[range(x) for x in beta.shape])) if edges is None else deque(range(len(beta)))
     check_map = np.zeros(beta.shape, dtype=bool)
     check_map[np.isnan(beta)] = True
     plateaus = []
 
     if verbose:
-        print '\tCalculating plateaus...'
+        print('\tCalculating plateaus...')
 
     if verbose > 1:
-        print '\tIndices to check {0} {1}'.format(len(to_check), check_map.shape)
+        print('\tIndices to check {0} {1}'.format(len(to_check), check_map.shape))
 
     # Loop until every beta index has been checked
     while to_check:
         if verbose > 1:
-            print '\t\tPlateau #{0}'.format(len(plateaus) + 1)
+            print('\t\tPlateau #{0}'.format(len(plateaus) + 1))
 
         # Get the next unchecked point on the grid
         idx = to_check.popleft()
