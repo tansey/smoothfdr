@@ -50,7 +50,7 @@ def smooth_fdr(data, fdr_level, edges=None, initial_values=None, verbose=0, null
     if verbose:
         print('Running predictive recursion for {0} sweeps'.format(num_sweeps))
     if signal_dist is None:
-        grid_x = np.linspace(min(-20, nonmissing_flat_data.min() - 1), max(nonmissing_flat_data.max() + 1, 20), 220)
+        grid_x = np.linspace(max(-20, nonmissing_flat_data.min() - 1), min(nonmissing_flat_data.max() + 1, 20), 220)
         pr_results = predictive_recursion(nonmissing_flat_data, num_sweeps, grid_x, mu0=mu0, sig0=sigma0)
         signal_dist = GridDistribution(pr_results['grid_x'], pr_results['y_signal'])
 

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 from scipy.sparse import csc_matrix, dia_matrix, linalg as sla
-from utils import *
+from smoothfdr.utils import *
 
 FIG_FONTSIZE = 18
 FIG_TITLE_FONTSIZE = 28

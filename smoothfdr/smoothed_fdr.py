@@ -26,7 +26,7 @@ class GaussianKnown:
         return norm.pdf(data, loc=self.mean, scale=np.sqrt(self.stdev**2 + 1))
 
     def __repr__(self):
-        return 'N({0}, {1}^2)'.format(self.mean, self.stdev)
+        return 'N({:.2f}, {:.2f}^2)'.format(self.mean, self.stdev)
 
 
 class SmoothedFdr(object):
